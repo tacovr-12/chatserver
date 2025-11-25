@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Global Chat</title>
   <style>
     html, body {
@@ -66,6 +67,11 @@
     button {
       cursor: pointer;
     }
+
+    .system-msg {
+      font-style: italic;
+      color: #555;
+    }
   </style>
 </head>
 <body>
@@ -103,6 +109,7 @@
       if (!name) return alert("Enter a username");
 
       socket = io();
+
       socket.emit("choose_username", { name, lang }, res => {
         if (!res.ok) return alert(res.error);
 
@@ -134,13 +141,14 @@
     function appendMessage(user, text) {
       const chatDiv = document.getElementById("chat");
       const div = document.createElement("div");
+
       if (user === "SYSTEM") {
-        div.style.fontStyle = "italic";
-        div.style.color = "#555";
+        div.className = "system-msg";
+        div.textContent = text;
       } else {
         div.innerHTML = `<strong>${user}:</strong> ${text}`;
       }
-      div.textContent = div.textContent || div.innerHTML;
+
       chatDiv.appendChild(div);
       chatDiv.scrollTop = chatDiv.scrollHeight;
     }
@@ -148,8 +156,7 @@
     function appendSystem(text) {
       const chatDiv = document.getElementById("chat");
       const div = document.createElement("div");
-      div.style.fontStyle = "italic";
-      div.style.color = "#555";
+      div.className = "system-msg";
       div.textContent = text;
       chatDiv.appendChild(div);
       chatDiv.scrollTop = chatDiv.scrollHeight;

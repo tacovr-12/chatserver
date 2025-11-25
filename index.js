@@ -34,11 +34,11 @@ function saveMessages() {
 }
 
 function cleanupMessages() {
-  const cutoff = Date.now() - 24*60*60*1000;
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   messages = messages.filter(m => m.timestamp > cutoff);
   saveMessages();
 }
-setInterval(cleanupMessages, 60*60*1000);
+setInterval(cleanupMessages, 60 * 60 * 1000);
 
 const TRANSLATE_URL = process.env.LIBRETRANSLATE_URL || "https://libretranslate.com";
 
@@ -77,6 +77,7 @@ async function translateText(text, targetLang) {
         format: "text"
       })
     });
+
     const data = await res.json();
     const translated = data.translatedText || text;
     translationCache[key] = translated;
@@ -86,27 +87,31 @@ async function translateText(text, targetLang) {
   }
 }
 
+// Broadcast message to all users with translation
+async function broadcastMessage(msg) {
+  await Promise.all(Object.entries(users).map(async ([id, u]) => {
+    const translated = await translateText(msg.text, u.lang);
+    io.to(id).emit("chat_message", { ...msg, text: translated });
+  }));
+}
+
 io.on("connection", socket => {
-  // Send last 24h messages immediately, untranslated first
+  // Send last 24h messages immediately
   socket.emit("chat_history", messages);
 
   socket.on("choose_username", async ({ name, lang }, cb) => {
     name = name.trim();
-    if (!name) return cb({ ok:false, error:"Username required" });
-    if (Object.values(users).some(u => u.username === name)) return cb({ ok:false, error:"Username taken" });
+    if (!name) return cb({ ok: false, error: "Username required" });
+    if (Object.values(users).some(u => u.username === name)) return cb({ ok: false, error: "Username taken" });
 
     users[socket.id] = { username: name, lang };
-    cb({ ok:true });
+    cb({ ok: true });
 
-    const joinMsg = { user:"SYSTEM", text:`${name} joined.`, timestamp:Date.now() };
+    const joinMsg = { user: "SYSTEM", text: `${name} joined.`, timestamp: Date.now() };
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast join message to all users, translated
-    await Promise.all(Object.entries(users).map(async ([id, u]) => {
-      const translated = await translateText(joinMsg.text, u.lang);
-      io.to(id).emit("chat_message", { ...joinMsg, text: translated });
-    }));
+    await broadcastMessage(joinMsg);
   });
 
   socket.on("send_message", async msg => {
@@ -115,15 +120,11 @@ io.on("connection", socket => {
     msg = msg.trim();
     if (!msg) return;
 
-    const messageData = { user: user.username, text: msg, timestamp:Date.now() };
+    const messageData = { user: user.username, text: msg, timestamp: Date.now() };
     messages.push(messageData);
     cleanupMessages();
 
-    // Translate and send to all users
-    await Promise.all(Object.entries(users).map(async ([id, u]) => {
-      const translated = await translateText(msg, u.lang);
-      io.to(id).emit("chat_message", { ...messageData, text: translated });
-    }));
+    await broadcastMessage(messageData);
   });
 
   socket.on("disconnect", async () => {
@@ -131,15 +132,11 @@ io.on("connection", socket => {
     if (!user) return;
     delete users[socket.id];
 
-    const leaveMsg = { user:"SYSTEM", text:`${user.username} left.`, timestamp:Date.now() };
+    const leaveMsg = { user: "SYSTEM", text: `${user.username} left.`, timestamp: Date.now() };
     messages.push(leaveMsg);
     cleanupMessages();
 
-    // Broadcast leave message to all users, translated
-    await Promise.all(Object.entries(users).map(async ([id, u]) => {
-      const translated = await translateText(leaveMsg.text, u.lang);
-      io.to(id).emit("chat_message", { ...leaveMsg, text: translated });
-    }));
+    await broadcastMessage(leaveMsg);
   });
 });
 
