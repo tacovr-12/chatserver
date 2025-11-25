@@ -4,74 +4,16 @@
   <meta charset="UTF-8">
   <title>Global Chat</title>
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    #chatContainer {
-      flex: 1;
-      width: 90%;
-      max-width: 800px;
-      display: flex;
-      flex-direction: column;
-      margin-top: 20px;
-    }
-
-    #chat {
-      flex: 1;
-      width: 100%;
-      border: 1px solid #ccc;
-      padding: 10px;
-      overflow-y: auto;
-      background-color: #f9f9f9;
-      margin-bottom: 10px;
-      box-sizing: border-box;
-    }
-
-    #inputContainer {
-      display: flex;
-      width: 100%;
-      gap: 10px;
-    }
-
-    #msg {
-      flex: 1;
-      padding: 8px;
-    }
-
-    #sendBtn {
-      padding: 8px 12px;
-    }
-
-    #loginSection {
-      width: 90%;
-      max-width: 800px;
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 20px;
-      flex-wrap: wrap;
-    }
-
-    #name, #lang {
-      padding: 8px;
-      flex: 1 1 150px;
-    }
-
-    button {
-      cursor: pointer;
-    }
-
-    .system-msg {
-      font-style: italic;
-      color: #555;
-    }
+    html, body { height: 100%; margin:0; font-family: Arial; display: flex; flex-direction: column; align-items: center; }
+    #chatContainer { flex:1; width:90%; max-width:800px; display:flex; flex-direction:column; margin-top:20px; }
+    #chat { flex:1; width:100%; border:1px solid #ccc; padding:10px; overflow-y:auto; background:#f9f9f9; margin-bottom:10px; box-sizing:border-box; }
+    #inputContainer { display:flex; width:100%; gap:10px; }
+    #msg { flex:1; padding:8px; }
+    #sendBtn { padding:8px 12px; }
+    #loginSection { width:90%; max-width:800px; display:flex; justify-content:center; gap:10px; margin-top:20px; flex-wrap:wrap; }
+    #name,#lang { padding:8px; flex:1 1 150px; }
+    button { cursor:pointer; }
+    .system-msg { font-style:italic; color:#555; }
   </style>
 </head>
 <body>
@@ -106,13 +48,12 @@
     function join() {
       const name = document.getElementById("name").value.trim();
       const lang = document.getElementById("lang").value;
-      if (!name) return alert("Enter a username");
+      if(!name) return alert("Enter a username");
 
       socket = io();
 
-      // Choose username and language
       socket.emit("choose_username", { name, lang }, res => {
-        if (!res.ok) return alert(res.error);
+        if(!res.ok) return alert(res.error);
 
         loggedIn = true;
         document.getElementById("msg").disabled = false;
@@ -121,34 +62,30 @@
         appendSystem(`Joined as ${name}`);
       });
 
-      // Listen for chat history (already translated by server)
       socket.on("chat_history", msgs => {
         msgs.forEach(m => appendMessage(m.user, m.text));
       });
 
-      // Listen for new messages (already translated by server)
       socket.on("chat_message", m => appendMessage(m.user, m.text));
     }
 
     function send() {
       const msgInput = document.getElementById("msg");
       const msg = msgInput.value.trim();
-      if (!msg || !loggedIn) return;
-      socket.emit("send_message", msg);
+      if(!msg || !loggedIn) return;
+      socket.emit("send_message", { text: msg });
       msgInput.value = "";
     }
 
     function appendMessage(user, text) {
       const chatDiv = document.getElementById("chat");
       const div = document.createElement("div");
-
-      if (user === "SYSTEM") {
+      if(user === "SYSTEM") {
         div.className = "system-msg";
         div.textContent = text;
       } else {
         div.innerHTML = `<strong>${user}:</strong> ${text}`;
       }
-
       chatDiv.appendChild(div);
       chatDiv.scrollTop = chatDiv.scrollHeight;
     }
