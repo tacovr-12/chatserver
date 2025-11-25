@@ -21,7 +21,7 @@
     }
 
     #msg {
-      width: 70%;
+      flex: 1;
       padding: 8px;
     }
 
@@ -62,7 +62,7 @@
       <option value="fr">French</option>
       <option value="de">German</option>
       <option value="zh">Chinese</option>
-      <!-- Add more languages as needed -->
+      <!-- add more languages as needed -->
     </select>
     <button onclick="join()">Join</button>
   </div>
@@ -80,13 +80,14 @@
   <script>
     let socket;
     let loggedIn = false;
+    let userLang = "en";
 
     function join() {
       const name = document.getElementById("name").value.trim();
       const lang = document.getElementById("lang").value;
-
       if (!name) return alert("Enter a username");
 
+      userLang = lang;
       socket = io();
 
       socket.emit("choose_username", { name, lang }, res => {
@@ -99,7 +100,7 @@
 
         document.getElementById("chat").innerHTML += `<div><em>Joined as ${name}</em></div>`;
 
-        // Receive chat history
+        // Listen for past messages
         socket.on("chat_history", msgs => {
           const chatDiv = document.getElementById("chat");
           chatDiv.innerHTML = "";
@@ -109,7 +110,7 @@
           chatDiv.scrollTop = chatDiv.scrollHeight;
         });
 
-        // Receive new messages
+        // Listen for new messages
         socket.on("chat_message", data => {
           const chatDiv = document.getElementById("chat");
           chatDiv.innerHTML += `<div><strong>${data.user}:</strong> ${data.text}</div>`;
