@@ -110,6 +110,7 @@
 
       socket = io();
 
+      // Choose username and language
       socket.emit("choose_username", { name, lang }, res => {
         if (!res.ok) return alert(res.error);
 
@@ -117,17 +118,16 @@
         document.getElementById("msg").disabled = false;
         document.getElementById("sendBtn").disabled = false;
         document.getElementById("loginSection").style.display = "none";
-
         appendSystem(`Joined as ${name}`);
       });
 
+      // Listen for chat history (already translated by server)
       socket.on("chat_history", msgs => {
         msgs.forEach(m => appendMessage(m.user, m.text));
       });
 
-      socket.on("chat_message", m => {
-        appendMessage(m.user, m.text);
-      });
+      // Listen for new messages (already translated by server)
+      socket.on("chat_message", m => appendMessage(m.user, m.text));
     }
 
     function send() {
