@@ -87,7 +87,6 @@ async function translateText(text, targetLang) {
 }
 
 io.on("connection", socket => {
-
   // Send last 24h messages immediately, untranslated first
   socket.emit("chat_history", messages);
 
@@ -103,11 +102,11 @@ io.on("connection", socket => {
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast join message asynchronously
-    Object.entries(users).forEach(async ([id, u]) => {
+    // Broadcast join message to all users, translated
+    await Promise.all(Object.entries(users).map(async ([id, u]) => {
       const translated = await translateText(joinMsg.text, u.lang);
       io.to(id).emit("chat_message", { ...joinMsg, text: translated });
-    });
+    }));
   });
 
   socket.on("send_message", async msg => {
@@ -120,11 +119,11 @@ io.on("connection", socket => {
     messages.push(messageData);
     cleanupMessages();
 
-    // Translate asynchronously for all users
-    Object.entries(users).forEach(async ([id, u]) => {
+    // Translate and send to all users
+    await Promise.all(Object.entries(users).map(async ([id, u]) => {
       const translated = await translateText(msg, u.lang);
       io.to(id).emit("chat_message", { ...messageData, text: translated });
-    });
+    }));
   });
 
   socket.on("disconnect", async () => {
@@ -136,10 +135,11 @@ io.on("connection", socket => {
     messages.push(leaveMsg);
     cleanupMessages();
 
-    Object.entries(users).forEach(async ([id, u]) => {
+    // Broadcast leave message to all users, translated
+    await Promise.all(Object.entries(users).map(async ([id, u]) => {
       const translated = await translateText(leaveMsg.text, u.lang);
       io.to(id).emit("chat_message", { ...leaveMsg, text: translated });
-    });
+    }));
   });
 });
 
