@@ -20,7 +20,7 @@ let users = {}; // { socketId: { username, lang } }
 let messages = [];
 let translationCache = {};
 
-// Load messages from disk
+// Load messages
 try {
   messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8"));
 } catch {
@@ -33,10 +33,9 @@ function saveMessages() {
   });
 }
 
-// Remove messages older than 24h
 function cleanupMessages() {
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-  messages = messages.filter(msg => msg.timestamp > cutoff);
+  const cutoff = Date.now() - 24*60*60*1000;
+  messages = messages.filter(m => m.timestamp > cutoff);
   saveMessages();
 }
 setInterval(cleanupMessages, 60*60*1000);
@@ -53,8 +52,7 @@ async function detectLanguage(text) {
     });
     const data = await res.json();
     return data[0]?.language || "auto";
-  } catch (err) {
-    console.error("Language detect error:", err);
+  } catch {
     return "auto";
   }
 }
@@ -62,13 +60,13 @@ async function detectLanguage(text) {
 // Translate text with caching
 async function translateText(text, targetLang) {
   if (!targetLang) return text;
-  const sourceLang = await detectLanguage(text);
-  if (sourceLang === targetLang) return text;
-
   const key = `${text}|${targetLang}`;
   if (translationCache[key]) return translationCache[key];
 
   try {
+    const sourceLang = await detectLanguage(text);
+    if (sourceLang === targetLang) return text;
+
     const res = await fetch(`${TRANSLATE_URL}/translate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -82,20 +80,17 @@ async function translateText(text, targetLang) {
     const data = await res.json();
     const translated = data.translatedText || text;
     translationCache[key] = translated;
-    console.log(`Translated "${text}" (${sourceLang} → ${targetLang}) → "${translated}"`);
     return translated;
-  } catch (err) {
-    console.error("Translation failed:", err);
+  } catch {
     return text;
   }
 }
 
 io.on("connection", socket => {
 
-  // Send last 24h messages
+  // Send last 24h messages immediately, untranslated first
   socket.emit("chat_history", messages);
 
-  // User login
   socket.on("choose_username", async ({ name, lang }, cb) => {
     name = name.trim();
     if (!name) return cb({ ok:false, error:"Username required" });
@@ -108,32 +103,30 @@ io.on("connection", socket => {
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast join message translated to all users
-    for (const [id, u] of Object.entries(users)) {
+    // Broadcast join message asynchronously
+    Object.entries(users).forEach(async ([id, u]) => {
       const translated = await translateText(joinMsg.text, u.lang);
       io.to(id).emit("chat_message", { ...joinMsg, text: translated });
-    }
+    });
   });
 
-  // Sending message
   socket.on("send_message", async msg => {
     const user = users[socket.id];
     if (!user) return;
     msg = msg.trim();
     if (!msg) return;
 
-    const messageData = { user: user.username, text: msg, timestamp: Date.now() };
+    const messageData = { user: user.username, text: msg, timestamp:Date.now() };
     messages.push(messageData);
     cleanupMessages();
 
-    // Translate for all users
-    for (const [id, u] of Object.entries(users)) {
+    // Translate asynchronously for all users
+    Object.entries(users).forEach(async ([id, u]) => {
       const translated = await translateText(msg, u.lang);
       io.to(id).emit("chat_message", { ...messageData, text: translated });
-    }
+    });
   });
 
-  // Disconnect
   socket.on("disconnect", async () => {
     const user = users[socket.id];
     if (!user) return;
@@ -143,10 +136,10 @@ io.on("connection", socket => {
     messages.push(leaveMsg);
     cleanupMessages();
 
-    for (const [id, u] of Object.entries(users)) {
+    Object.entries(users).forEach(async ([id, u]) => {
       const translated = await translateText(leaveMsg.text, u.lang);
       io.to(id).emit("chat_message", { ...leaveMsg, text: translated });
-    }
+    });
   });
 });
 

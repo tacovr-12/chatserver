@@ -1,23 +1,42 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
   <title>Global Chat</title>
   <style>
-    body {
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
       font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #chatContainer {
+      flex: 1;
+      width: 90%;
       max-width: 800px;
-      margin: 20px auto;
+      display: flex;
+      flex-direction: column;
+      margin-top: 20px;
     }
 
     #chat {
+      flex: 1;
       width: 100%;
-      height: 500px;
       border: 1px solid #ccc;
       padding: 10px;
       overflow-y: auto;
       background-color: #f9f9f9;
       margin-bottom: 10px;
+      box-sizing: border-box;
+    }
+
+    #inputContainer {
+      display: flex;
+      width: 100%;
+      gap: 10px;
     }
 
     #msg {
@@ -25,97 +44,82 @@
       padding: 8px;
     }
 
-    select, input, button {
-      padding: 8px;
-      margin: 2px 0;
+    #sendBtn {
+      padding: 8px 12px;
     }
 
-    #login-section {
-      margin-bottom: 10px;
-    }
-
-    #msg-section {
+    #loginSection {
+      width: 90%;
+      max-width: 800px;
       display: flex;
-      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 20px;
+      flex-wrap: wrap;
     }
 
-    #msg-section button {
-      margin-left: 5px;
+    #name, #lang {
+      padding: 8px;
+      flex: 1 1 150px;
     }
 
-    #notice {
-      color: red;
-      font-size: 0.9em;
-      margin-bottom: 5px;
+    button {
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
   <h2>Global Chat</h2>
 
-  <div id="login-section">
+  <div id="loginSection">
     <input id="name" placeholder="Enter username" />
     <select id="lang">
       <option value="en">English</option>
       <option value="ja">Japanese</option>
+      <option value="de">German</option>
       <option value="es">Spanish</option>
       <option value="fr">French</option>
-      <option value="de">German</option>
       <option value="zh">Chinese</option>
-      <!-- add more languages as needed -->
     </select>
     <button onclick="join()">Join</button>
   </div>
 
-  <div id="notice">You must log in to send messages</div>
-
-  <div id="chat"></div>
-
-  <div id="msg-section">
-    <input id="msg" placeholder="Message" disabled />
-    <button onclick="send()" disabled>Send</button>
+  <div id="chatContainer">
+    <div id="chat"></div>
+    <div id="inputContainer">
+      <input id="msg" placeholder="Message" disabled />
+      <button id="sendBtn" onclick="send()" disabled>Send</button>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
     let socket;
     let loggedIn = false;
-    let userLang = "en";
 
     function join() {
       const name = document.getElementById("name").value.trim();
       const lang = document.getElementById("lang").value;
       if (!name) return alert("Enter a username");
 
-      userLang = lang;
       socket = io();
-
       socket.emit("choose_username", { name, lang }, res => {
         if (!res.ok) return alert(res.error);
 
         loggedIn = true;
-        document.getElementById("notice").style.display = "none";
         document.getElementById("msg").disabled = false;
-        document.querySelector("#msg-section button").disabled = false;
+        document.getElementById("sendBtn").disabled = false;
+        document.getElementById("loginSection").style.display = "none";
 
-        document.getElementById("chat").innerHTML += `<div><em>Joined as ${name}</em></div>`;
+        appendSystem(`Joined as ${name}`);
+      });
 
-        // Listen for past messages
-        socket.on("chat_history", msgs => {
-          const chatDiv = document.getElementById("chat");
-          chatDiv.innerHTML = "";
-          msgs.forEach(m => {
-            chatDiv.innerHTML += `<div><strong>${m.user}:</strong> ${m.text}</div>`;
-          });
-          chatDiv.scrollTop = chatDiv.scrollHeight;
-        });
+      socket.on("chat_history", msgs => {
+        msgs.forEach(m => appendMessage(m.user, m.text));
+      });
 
-        // Listen for new messages
-        socket.on("chat_message", data => {
-          const chatDiv = document.getElementById("chat");
-          chatDiv.innerHTML += `<div><strong>${data.user}:</strong> ${data.text}</div>`;
-          chatDiv.scrollTop = chatDiv.scrollHeight;
-        });
+      socket.on("chat_message", m => {
+        appendMessage(m.user, m.text);
       });
     }
 
@@ -125,6 +129,30 @@
       if (!msg || !loggedIn) return;
       socket.emit("send_message", msg);
       msgInput.value = "";
+    }
+
+    function appendMessage(user, text) {
+      const chatDiv = document.getElementById("chat");
+      const div = document.createElement("div");
+      if (user === "SYSTEM") {
+        div.style.fontStyle = "italic";
+        div.style.color = "#555";
+      } else {
+        div.innerHTML = `<strong>${user}:</strong> ${text}`;
+      }
+      div.textContent = div.textContent || div.innerHTML;
+      chatDiv.appendChild(div);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    function appendSystem(text) {
+      const chatDiv = document.getElementById("chat");
+      const div = document.createElement("div");
+      div.style.fontStyle = "italic";
+      div.style.color = "#555";
+      div.textContent = text;
+      chatDiv.appendChild(div);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
     }
   </script>
 </body>
