@@ -17,8 +17,9 @@ app.use(express.static(path.join(__dirname, "public")));
 const MESSAGES_FILE = path.join(__dirname, "messages.json");
 let users = {}; // { socketId: { username, lang } }
 let messages = [];
+let translationCache = {}; // { "text|lang": translatedText }
 
-// Load messages
+// Load messages on start
 try {
   const data = fs.readFileSync(MESSAGES_FILE, "utf-8");
   messages = JSON.parse(data);
@@ -41,22 +42,44 @@ function cleanupMessages() {
 }
 setInterval(cleanupMessages, 60 * 60 * 1000);
 
-// Translate text using LibreTranslate
+// Language detection using LibreTranslate
+async function detectLanguage(text) {
+  try {
+    const res = await fetch("https://libretranslate.com/detect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: text })
+    });
+    const data = await res.json();
+    return data[0].language || "auto";
+  } catch (err) {
+    console.error("Language detect error:", err);
+    return "auto";
+  }
+}
+
+// Translate text with caching
 async function translateText(text, targetLang) {
   if (!targetLang || targetLang === "auto") return text;
+  const key = `${text}|${targetLang}`;
+  if (translationCache[key]) return translationCache[key];
+
   try {
+    const sourceLang = await detectLanguage(text);
     const res = await fetch("https://libretranslate.com/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         q: text,
-        source: "auto",
+        source: sourceLang,
         target: targetLang,
         format: "text"
       })
     });
     const data = await res.json();
-    return data.translatedText || text;
+    const translated = data.translatedText || text;
+    translationCache[key] = translated;
+    return translated;
   } catch (err) {
     console.error("Translation error:", err);
     return text;
@@ -64,13 +87,13 @@ async function translateText(text, targetLang) {
 }
 
 io.on("connection", socket => {
-  // Send all messages
+  // Send chat history
   socket.emit("chat_history", messages);
 
-  // Send online users
+  // Send current online users
   socket.emit("user_list", Object.values(users).map(u => u.username));
 
-  // Login with username and language
+  // Login
   socket.on("choose_username", async ({ name, lang }, cb) => {
     name = name.trim();
     if (!name) return cb({ ok: false, error: "Username required" });
@@ -83,10 +106,10 @@ io.on("connection", socket => {
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast translated join message to all
-    for (const [id, user] of Object.entries(users)) {
-      const translatedText = await translateText(joinMsg.text, user.lang);
-      io.to(id).emit("chat_message", { ...joinMsg, text: translatedText });
+    // Broadcast translated join message to all users
+    for (const [id, u] of Object.entries(users)) {
+      const translated = await translateText(joinMsg.text, u.lang);
+      io.to(id).emit("chat_message", { ...joinMsg, text: translated });
     }
 
     io.emit("user_list", Object.values(users).map(u => u.username));
@@ -103,10 +126,10 @@ io.on("connection", socket => {
     messages.push(messageData);
     cleanupMessages();
 
-    // Translate message for each connected user
+    // Broadcast translated message to all
     for (const [id, u] of Object.entries(users)) {
-      const translatedText = await translateText(msg, u.lang);
-      io.to(id).emit("chat_message", { ...messageData, text: translatedText });
+      const translated = await translateText(msg, u.lang);
+      io.to(id).emit("chat_message", { ...messageData, text: translated });
     }
   });
 
@@ -120,10 +143,9 @@ io.on("connection", socket => {
     messages.push(leaveMsg);
     cleanupMessages();
 
-    // Broadcast translated leave message
     for (const [id, u] of Object.entries(users)) {
-      const translatedText = await translateText(leaveMsg.text, u.lang);
-      io.to(id).emit("chat_message", { ...leaveMsg, text: translatedText });
+      const translated = await translateText(leaveMsg.text, u.lang);
+      io.to(id).emit("chat_message", { ...leaveMsg, text: translated });
     }
 
     io.emit("user_list", Object.values(users).map(u => u.username));
