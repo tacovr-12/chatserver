@@ -40,19 +40,21 @@ function cleanupMessages() {
 }
 setInterval(cleanupMessages, 60*60*1000);
 
-const TRANSLATE_URL = process.env.LIBRETRANSLATE_URL || "https://libretranslate.com";
+// Use a reliable public LibreTranslate endpoint
+const TRANSLATE_URL = process.env.LIBRETRANSLATE_URL || "https://libretranslate.de";
 
 // Detect language
 async function detectLanguage(text) {
   try {
     const res = await fetch(`${TRANSLATE_URL}/detect`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({ q: text })
     });
     const data = await res.json();
     return data[0]?.language || "en";
-  } catch {
+  } catch (err) {
+    console.error("Detect language error:", err);
     return "en";
   }
 }
@@ -69,7 +71,7 @@ async function translateText(text, targetLang) {
 
     const res = await fetch(`${TRANSLATE_URL}/translate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify({
         q: text,
         source: sourceLang,
@@ -77,18 +79,25 @@ async function translateText(text, targetLang) {
         format: "text"
       })
     });
+
+    if (!res.ok) {
+      console.error("Translation failed:", res.status, await res.text());
+      return text;
+    }
+
     const data = await res.json();
     const translated = data.translatedText || text;
     translationCache[key] = translated;
     return translated;
-  } catch {
+  } catch (err) {
+    console.error("Translate error:", err);
     return text;
   }
 }
 
+// Socket.IO connection
 io.on("connection", socket => {
-
-  // Send last 24h messages immediately
+  // Send last 24h messages untranslated first
   socket.emit("chat_history", messages);
 
   socket.on("choose_username", async ({ name, lang }, cb) => {
@@ -103,7 +112,7 @@ io.on("connection", socket => {
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast join message translated to all users
+    // Broadcast join message to all users, translated
     await Promise.all(Object.entries(users).map(async ([id, u]) => {
       const translated = await translateText(joinMsg.text, u.lang);
       io.to(id).emit("chat_message", { ...joinMsg, text: translated });
@@ -120,7 +129,6 @@ io.on("connection", socket => {
     messages.push(messageData);
     cleanupMessages();
 
-    // Send translated message to all users
     await Promise.all(Object.entries(users).map(async ([id, u]) => {
       const translated = await translateText(msg, u.lang);
       io.to(id).emit("chat_message", { ...messageData, text: translated });
@@ -136,13 +144,11 @@ io.on("connection", socket => {
     messages.push(leaveMsg);
     cleanupMessages();
 
-    // Broadcast leave message translated to all users
     await Promise.all(Object.entries(users).map(async ([id, u]) => {
       const translated = await translateText(leaveMsg.text, u.lang);
       io.to(id).emit("chat_message", { ...leaveMsg, text: translated });
     }));
   });
-
 });
 
 const PORT = process.env.PORT || 4000;

@@ -1,103 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Global Chat</title>
-  <style>
-    html, body { height: 100%; margin:0; font-family: Arial; display: flex; flex-direction: column; align-items: center; }
-    #chatContainer { flex:1; width:90%; max-width:800px; display:flex; flex-direction:column; margin-top:20px; }
-    #chat { flex:1; width:100%; border:1px solid #ccc; padding:10px; overflow-y:auto; background:#f9f9f9; margin-bottom:10px; box-sizing:border-box; }
-    #inputContainer { display:flex; width:100%; gap:10px; }
-    #msg { flex:1; padding:8px; }
-    #sendBtn { padding:8px 12px; }
-    #loginSection { width:90%; max-width:800px; display:flex; justify-content:center; gap:10px; margin-top:20px; flex-wrap:wrap; }
-    #name,#lang { padding:8px; flex:1 1 150px; }
-    button { cursor:pointer; }
-    .system-msg { font-style:italic; color:#555; }
-  </style>
+<meta charset="UTF-8">
+<title>Global Chat</title>
+<style>
+  html, body { height: 100%; margin:0; font-family: Arial; display:flex; flex-direction:column; align-items:center; }
+  #chatContainer { flex:1; width:90%; max-width:800px; display:flex; flex-direction:column; margin-top:20px; }
+  #chat { flex:1; width:100%; border:1px solid #ccc; padding:10px; overflow-y:auto; background:#f9f9f9; margin-bottom:10px; box-sizing:border-box; }
+  #inputContainer { display:flex; width:100%; gap:10px; }
+  #msg { flex:1; padding:8px; }
+  #sendBtn { padding:8px 12px; }
+  #loginSection { width:90%; max-width:800px; display:flex; justify-content:center; gap:10px; margin-top:20px; flex-wrap:wrap; }
+  #name,#lang { padding:8px; flex:1 1 150px; }
+  button { cursor:pointer; }
+  .system-msg { font-style:italic; color:#555; }
+</style>
 </head>
 <body>
-  <h2>Global Chat</h2>
 
-  <div id="loginSection">
-    <input id="name" placeholder="Enter username" />
-    <select id="lang">
-      <option value="en">English</option>
-      <option value="ja">Japanese</option>
-      <option value="de">German</option>
-      <option value="es">Spanish</option>
-      <option value="fr">French</option>
-      <option value="zh">Chinese</option>
-    </select>
-    <button onclick="join()">Join</button>
+<h2>Global Chat</h2>
+
+<div id="loginSection">
+  <input id="name" placeholder="Enter username" />
+  <select id="lang">
+    <option value="en">English</option>
+    <option value="ja">Japanese</option>
+    <option value="de">German</option>
+    <option value="es">Spanish</option>
+    <option value="fr">French</option>
+    <option value="zh">Chinese</option>
+  </select>
+  <button onclick="join()">Join</button>
+</div>
+
+<div id="chatContainer">
+  <div id="chat"></div>
+  <div id="inputContainer">
+    <input id="msg" placeholder="Message" disabled />
+    <button id="sendBtn" onclick="send()" disabled>Send</button>
   </div>
+</div>
 
-  <div id="chatContainer">
-    <div id="chat"></div>
-    <div id="inputContainer">
-      <input id="msg" placeholder="Message" disabled />
-      <button id="sendBtn" onclick="send()" disabled>Send</button>
-    </div>
-  </div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+let socket;
+let loggedIn = false;
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    let socket;
-    let loggedIn = false;
+function join() {
+  const name = document.getElementById("name").value.trim();
+  const lang = document.getElementById("lang").value;
+  if(!name) return alert("Enter a username");
 
-    function join() {
-      const name = document.getElementById("name").value.trim();
-      const lang = document.getElementById("lang").value;
-      if(!name) return alert("Enter a username");
+  socket = io();
 
-      socket = io();
+  socket.emit("choose_username", { name, lang }, res => {
+    if(!res.ok) return alert(res.error);
 
-      socket.emit("choose_username", { name, lang }, res => {
-        if(!res.ok) return alert(res.error);
+    loggedIn = true;
+    document.getElementById("msg").disabled = false;
+    document.getElementById("sendBtn").disabled = false;
+    document.getElementById("loginSection").style.display = "none";
+    appendSystem(`Joined as ${name}`);
+  });
 
-        loggedIn = true;
-        document.getElementById("msg").disabled = false;
-        document.getElementById("sendBtn").disabled = false;
-        document.getElementById("loginSection").style.display = "none";
-        appendSystem(`Joined as ${name}`);
-      });
+  socket.on("chat_history", msgs => {
+    msgs.forEach(m => appendMessage(m.user, m.text));
+  });
 
-      socket.on("chat_history", msgs => {
-        msgs.forEach(m => appendMessage(m.user, m.text));
-      });
+  socket.on("chat_message", m => appendMessage(m.user, m.text));
+}
 
-      socket.on("chat_message", m => appendMessage(m.user, m.text));
-    }
+function send() {
+  const msgInput = document.getElementById("msg");
+  const msg = msgInput.value.trim();
+  if(!msg || !loggedIn) return;
+  socket.emit("send_message", { text: msg });
+  msgInput.value = "";
+}
 
-    function send() {
-      const msgInput = document.getElementById("msg");
-      const msg = msgInput.value.trim();
-      if(!msg || !loggedIn) return;
-      socket.emit("send_message", { text: msg });
-      msgInput.value = "";
-    }
+function appendMessage(user, text) {
+  const chatDiv = document.getElementById("chat");
+  const div = document.createElement("div");
+  if(user === "SYSTEM") {
+    div.className = "system-msg";
+    div.textContent = text;
+  } else {
+    div.innerHTML = `<strong>${user}:</strong> ${text}`;
+  }
+  chatDiv.appendChild(div);
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
 
-    function appendMessage(user, text) {
-      const chatDiv = document.getElementById("chat");
-      const div = document.createElement("div");
-      if(user === "SYSTEM") {
-        div.className = "system-msg";
-        div.textContent = text;
-      } else {
-        div.innerHTML = `<strong>${user}:</strong> ${text}`;
-      }
-      chatDiv.appendChild(div);
-      chatDiv.scrollTop = chatDiv.scrollHeight;
-    }
+function appendSystem(text) {
+  const chatDiv = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "system-msg";
+  div.textContent = text;
+  chatDiv.appendChild(div);
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+</script>
 
-    function appendSystem(text) {
-      const chatDiv = document.getElementById("chat");
-      const div = document.createElement("div");
-      div.className = "system-msg";
-      div.textContent = text;
-      chatDiv.appendChild(div);
-      chatDiv.scrollTop = chatDiv.scrollHeight;
-    }
-  </script>
 </body>
 </html>
