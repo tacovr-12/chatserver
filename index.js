@@ -11,13 +11,25 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
-// Serve static files from "public"
 app.use(express.static(path.join(__dirname, "public")));
 
 let usernames = new Set();
+let messages = []; // store {user, text, timestamp}
+
+// Remove messages older than 24 hours every hour
+setInterval(() => {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  messages = messages.filter(msg => msg.timestamp > cutoff);
+}, 60 * 60 * 1000);
 
 io.on("connection", (socket) => {
   let username = null;
+
+  // send current users list to new connection
+  socket.emit("user_list", Array.from(usernames));
+
+  // send existing chat history
+  socket.emit("chat_history", messages);
 
   socket.on("choose_username", (name, cb) => {
     name = name.trim();
@@ -28,25 +40,29 @@ io.on("connection", (socket) => {
     username = name;
     cb({ ok: true });
 
-    io.emit("chat_message", { user: "SYSTEM", text: `${name} joined.` });
+    io.emit("chat_message", { user: "SYSTEM", text: `${name} joined.`, timestamp: Date.now() });
+    io.emit("user_list", Array.from(usernames));
   });
 
   socket.on("send_message", (msg) => {
     if (!username) return;
     msg = msg.trim();
     if (!msg) return;
-    io.emit("chat_message", { user: username, text: msg });
+
+    const messageData = { user: username, text: msg, timestamp: Date.now() };
+    messages.push(messageData);
+    io.emit("chat_message", messageData);
   });
 
   socket.on("disconnect", () => {
     if (username) {
       usernames.delete(username);
-      io.emit("chat_message", { user: "SYSTEM", text: `${username} left.` });
+      io.emit("chat_message", { user: "SYSTEM", text: `${username} left.`, timestamp: Date.now() });
+      io.emit("user_list", Array.from(usernames));
     }
   });
 });
 
-// Use Koyeb PORT or fallback to 4000 locally
 const PORT = process.env.PORT || 4000;
 httpServer.listen(PORT, () => {
   console.log(`Listening on ${PORT}`);
