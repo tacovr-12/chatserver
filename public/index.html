@@ -3,55 +3,28 @@
 <head>
   <title>Global Chat</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 1000px;
-      margin: 20px auto;
-      display: flex;
-      gap: 20px;
-    }
-
-    #chat-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-
-    #chat {
-      width: 100%;
-      height: 500px;
-      border: 1px solid #ccc;
-      padding: 10px;
-      overflow-y: auto;
-      background-color: #f9f9f9;
-      margin-bottom: 10px;
-    }
-
-    #msg {
-      width: 80%;
-      padding: 8px;
-    }
-
-    button {
-      padding: 8px 12px;
-    }
-
-    #users {
-      width: 200px;
-      border: 1px solid #ccc;
-      padding: 10px;
-      background-color: #f1f1f1;
-    }
-
-    #users h3 {
-      margin-top: 0;
-    }
+    body { font-family: Arial; max-width: 1000px; margin: 20px auto; display: flex; gap: 20px; }
+    #chat-container { flex: 1; display: flex; flex-direction: column; }
+    #chat { width: 100%; height: 500px; border: 1px solid #ccc; padding: 10px; overflow-y: auto; background-color: #f9f9f9; margin-bottom: 10px; }
+    #msg { width: 70%; padding: 8px; }
+    button { padding: 8px 12px; }
+    #users { width: 200px; border: 1px solid #ccc; padding: 10px; background-color: #f1f1f1; }
+    #users h3 { margin-top: 0; }
   </style>
 </head>
 <body>
   <div id="chat-container">
     <h2>Global Chat</h2>
-    <input id="name" placeholder="Enter username to chat" />
+    <input id="name" placeholder="Enter username" />
+    <select id="lang">
+      <option value="en">English</option>
+      <option value="es">Spanish</option>
+      <option value="fr">French</option>
+      <option value="de">German</option>
+      <option value="ja">Japanese</option>
+      <option value="zh">Chinese</option>
+      <option value="ru">Russian</option>
+    </select>
     <button id="loginBtn">Login</button>
 
     <div id="chat"></div>
@@ -67,7 +40,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    let socket = io(); // create the socket once
+    let socket = io();
     let loggedIn = false;
 
     function escapeHTML(str) {
@@ -86,38 +59,32 @@
       });
     }
 
-    // Update chat area
     function addMessage(msg) {
       const chatDiv = document.getElementById("chat");
       chatDiv.innerHTML += `<div><strong>${escapeHTML(msg.user)}:</strong> ${escapeHTML(msg.text)}</div>`;
       chatDiv.scrollTop = chatDiv.scrollHeight;
     }
 
-    // Receive chat history and online users
-    socket.on("chat_history", msgs => {
-      msgs.forEach(addMessage);
-    });
-
+    socket.on("chat_history", msgs => msgs.forEach(addMessage));
     socket.on("chat_message", addMessage);
     socket.on("user_list", updateUserList);
 
-    // Login function
     document.getElementById("loginBtn").onclick = () => {
       const name = document.getElementById("name").value.trim();
+      const lang = document.getElementById("lang").value;
       if (!name) return alert("Enter a username");
 
-      socket.emit("choose_username", name, res => {
+      socket.emit("choose_username", { name, lang }, res => {
         if (!res.ok) return alert(res.error);
-
         loggedIn = true;
         document.getElementById("msg").disabled = false;
         document.getElementById("sendBtn").disabled = false;
         document.getElementById("loginBtn").disabled = true;
         document.getElementById("name").disabled = true;
+        document.getElementById("lang").disabled = true;
       });
     };
 
-    // Send message function
     document.getElementById("sendBtn").onclick = () => {
       const msg = document.getElementById("msg").value.trim();
       if (!msg || !loggedIn) return;
@@ -125,8 +92,7 @@
       document.getElementById("msg").value = "";
     };
 
-    // Press Enter to send message
-    document.getElementById("msg").addEventListener("keypress", (e) => {
+    document.getElementById("msg").addEventListener("keypress", e => {
       if (e.key === "Enter") document.getElementById("sendBtn").click();
     });
   </script>
