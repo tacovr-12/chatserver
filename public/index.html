@@ -43,45 +43,18 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-
 let socket;
 let loggedIn = false;
 let myLang = "en";
 
-/* ------------------------- TRANSLATOR ------------------------- */
-async function translateMessage(text, targetLang) {
-  try {
-    const res = await fetch("https://libretranslate.de/translate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        q: text,
-        source: "auto",
-        target: targetLang,
-        format: "text"
-      })
-    });
-
-    const data = await res.json();
-    return data.translatedText || text;
-  } catch (err) {
-    return text; 
-  }
-}
-/* -------------------------------------------------------------- */
-
 function join() {
   const name = document.getElementById("name").value.trim();
-  const lang = document.getElementById("lang").value;
-  myLang = lang;
-
+  myLang = document.getElementById("lang").value;
   if(!name) return alert("Enter a username");
 
   socket = io();
 
-  socket.emit("choose_username", { name, lang }, res => {
+  socket.emit("choose_username", { name, lang: myLang }, res => {
     if(!res.ok) return alert(res.error);
 
     loggedIn = true;
@@ -91,43 +64,30 @@ function join() {
     appendSystem(`Joined as ${name}`);
   });
 
-  socket.on("chat_history", async msgs => {
-    for (const m of msgs) {
-      const t = await translateMessage(m.text, myLang);
-      appendMessage(m.user, t);
-    }
+  socket.on("chat_history", msgs => {
+    msgs.forEach(m => appendMessage(m.user, m.text));
   });
 
-  socket.on("chat_message", async m => {
-    const t = await translateMessage(m.text, myLang);
-    appendMessage(m.user, t);
-  });
+  socket.on("chat_message", m => appendMessage(m.user, m.text));
 }
 
-async function send() {
+function send() {
   const msgInput = document.getElementById("msg");
   const msg = msgInput.value.trim();
-
   if(!msg || !loggedIn) return;
-
-  // translate outgoing message to English (server language)
-  const translated = await translateMessage(msg, "en");
-
-  socket.emit("send_message", { text: translated });
+  socket.emit("send_message", { text: msg });
   msgInput.value = "";
 }
 
 function appendMessage(user, text) {
   const chatDiv = document.getElementById("chat");
   const div = document.createElement("div");
-
   if(user === "SYSTEM") {
     div.className = "system-msg";
     div.textContent = text;
   } else {
     div.innerHTML = `<strong>${user}:</strong> ${text}`;
   }
-
   chatDiv.appendChild(div);
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
@@ -140,7 +100,6 @@ function appendSystem(text) {
   chatDiv.appendChild(div);
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
-
 </script>
 
 </body>
