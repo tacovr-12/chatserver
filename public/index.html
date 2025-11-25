@@ -4,121 +4,18 @@
 <meta charset="UTF-8">
 <title>Global Chat</title>
 <style>
-  html, body {
-    height: 100%;
-    margin: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: #f4f4f9;
-  }
-
-  h2 {
-    margin-top: 20px;
-    color: #333;
-  }
-
-  #loginSection {
-    width: 90%;
-    max-width: 500px;
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    margin: 20px 0;
-    flex-wrap: wrap;
-  }
-
-  #loginSection input, #loginSection select, #loginSection button {
-    padding: 10px;
-    font-size: 1rem;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    box-sizing: border-box;
-  }
-
-  #loginSection button {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    flex: 1 1 100px;
-    cursor: pointer;
-    transition: 0.2s;
-  }
-
-  #loginSection button:hover {
-    background-color: #45a049;
-  }
-
-  #chatContainer {
-    flex: 1;
-    width: 90%;
-    max-width: 800px;
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 20px;
-    height: 70vh;
-  }
-
-  #chat {
-    flex: 1;
-    width: 100%;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 10px;
-    overflow-y: auto;
-    background: #fff;
-    margin-bottom: 10px;
-    box-sizing: border-box;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-  }
-
-  #inputContainer {
-    display: flex;
-    width: 100%;
-    gap: 10px;
-  }
-
-  #msg {
-    flex: 1;
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    font-size: 1rem;
-  }
-
-  #sendBtn {
-    padding: 10px 20px;
-    border-radius: 8px;
-    border: none;
-    background-color: #2196F3;
-    color: white;
-    cursor: pointer;
-    transition: 0.2s;
-  }
-
-  #sendBtn:hover {
-    background-color: #0b7dda;
-  }
-
-  .system-msg {
-    font-style: italic;
-    color: #555;
-    margin: 4px 0;
-  }
-
-  .chat-message {
-    margin: 4px 0;
-  }
-
-  .chat-message strong {
-    color: #333;
-  }
-
-  /* Searchable dropdown styling */
-  #lang {
-    flex: 1 1 150px;
-  }
+  html, body { height: 100%; margin:0; font-family: Arial; display:flex; flex-direction:column; align-items:center; }
+  #chatContainer { flex:1; width:90%; max-width:800px; display:flex; flex-direction:column; margin-top:20px; }
+  #chat { flex:1; width:100%; border:1px solid #ccc; padding:10px; overflow-y:auto; background:#f9f9f9; margin-bottom:10px; box-sizing:border-box; border-radius:8px; }
+  #inputContainer { display:flex; width:100%; gap:10px; }
+  #msg { flex:1; padding:8px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box; }
+  #sendBtn { padding:8px 12px; border-radius:8px; border:none; background:#4CAF50; color:white; cursor:pointer; }
+  #sendBtn:disabled { background:#999; cursor:default; }
+  #loginSection { width:90%; max-width:800px; display:flex; justify-content:center; gap:10px; margin-top:20px; flex-wrap:wrap; }
+  #name, #langSearch { padding:8px; flex:1 1 150px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box; }
+  #lang { width:100%; margin-top:5px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box; }
+  button { cursor:pointer; border-radius:8px; }
+  .system-msg { font-style:italic; color:#555; }
 </style>
 </head>
 <body>
@@ -127,9 +24,10 @@
 
 <div id="loginSection">
   <input id="name" placeholder="Enter username" />
-  <select id="lang">
-    <!-- Languages will be populated dynamically -->
-  </select>
+  <div style="position: relative; flex: 1 1 150px;">
+    <input type="text" id="langSearch" placeholder="Search language..." />
+    <select id="lang" size="6"></select>
+  </div>
   <button onclick="join()">Join</button>
 </div>
 
@@ -143,47 +41,54 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
+// full list of 200+ languages supported by MyMemory
 const languages = {
-  "af": "Afrikaans", "sq": "Albanian", "am": "Amharic", "ar": "Arabic", "hy": "Armenian",
-  "az": "Azerbaijani", "eu": "Basque", "be": "Belarusian", "bn": "Bengali", "bs": "Bosnian",
-  "bg": "Bulgarian", "ca": "Catalan", "ceb": "Cebuano", "zh": "Chinese", "co": "Corsican",
-  "hr": "Croatian", "cs": "Czech", "da": "Danish", "nl": "Dutch", "en": "English",
-  "eo": "Esperanto", "et": "Estonian", "fi": "Finnish", "fr": "French", "fy": "Frisian",
-  "gl": "Galician", "ka": "Georgian", "de": "German", "el": "Greek", "gu": "Gujarati",
-  "ht": "Haitian Creole", "ha": "Hausa", "haw": "Hawaiian", "he": "Hebrew", "hi": "Hindi",
-  "hmn": "Hmong", "hu": "Hungarian", "is": "Icelandic", "ig": "Igbo", "id": "Indonesian",
-  "ga": "Irish", "it": "Italian", "ja": "Japanese", "jw": "Javanese", "kn": "Kannada",
-  "kk": "Kazakh", "km": "Khmer", "ko": "Korean", "ku": "Kurdish", "ky": "Kyrgyz",
-  "lo": "Lao", "la": "Latin", "lv": "Latvian", "lt": "Lithuanian", "lb": "Luxembourgish",
-  "mk": "Macedonian", "mg": "Malagasy", "ms": "Malay", "ml": "Malayalam", "mt": "Maltese",
-  "mi": "Maori", "mr": "Marathi", "mn": "Mongolian", "my": "Myanmar (Burmese)", "ne": "Nepali",
-  "no": "Norwegian", "ny": "Nyanja (Chichewa)", "ps": "Pashto", "fa": "Persian", "pl": "Polish",
-  "pt": "Portuguese", "pa": "Punjabi", "ro": "Romanian", "ru": "Russian", "sm": "Samoan",
-  "gd": "Scots Gaelic", "sr": "Serbian", "st": "Sesotho", "sn": "Shona", "sd": "Sindhi",
-  "si": "Sinhala (Sinhalese)", "sk": "Slovak", "sl": "Slovenian", "so": "Somali", "es": "Spanish",
-  "su": "Sundanese", "sw": "Swahili", "sv": "Swedish", "tl": "Tagalog (Filipino)", "tg": "Tajik",
-  "ta": "Tamil", "te": "Telugu", "th": "Thai", "tr": "Turkish", "uk": "Ukrainian",
-  "ur": "Urdu", "uz": "Uzbek", "vi": "Vietnamese", "cy": "Welsh", "xh": "Xhosa",
-  "yi": "Yiddish", "yo": "Yoruba", "zu": "Zulu"
+  "af":"Afrikaans","sq":"Albanian","am":"Amharic","ar":"Arabic","hy":"Armenian","az":"Azerbaijani","eu":"Basque","be":"Belarusian",
+  "bn":"Bengali","bs":"Bosnian","bg":"Bulgarian","ca":"Catalan","ceb":"Cebuano","ny":"Chichewa","zh-CN":"Chinese (Simplified)","zh-TW":"Chinese (Traditional)",
+  "co":"Corsican","hr":"Croatian","cs":"Czech","da":"Danish","nl":"Dutch","en":"English","eo":"Esperanto","et":"Estonian",
+  "tl":"Filipino","fi":"Finnish","fr":"French","fy":"Frisian","gl":"Galician","ka":"Georgian","de":"German","el":"Greek",
+  "gu":"Gujarati","ht":"Haitian Creole","ha":"Hausa","haw":"Hawaiian","iw":"Hebrew","hi":"Hindi","hmn":"Hmong","hu":"Hungarian",
+  "is":"Icelandic","ig":"Igbo","id":"Indonesian","ga":"Irish","it":"Italian","ja":"Japanese","jw":"Javanese","kn":"Kannada",
+  "kk":"Kazakh","km":"Khmer","ko":"Korean","ku":"Kurdish (Kurmanji)","ky":"Kyrgyz","lo":"Lao","la":"Latin","lv":"Latvian",
+  "lt":"Lithuanian","lb":"Luxembourgish","mk":"Macedonian","mg":"Malagasy","ms":"Malay","ml":"Malayalam","mt":"Maltese","mi":"Maori",
+  "mr":"Marathi","mn":"Mongolian","my":"Myanmar (Burmese)","ne":"Nepali","no":"Norwegian","ps":"Pashto","fa":"Persian","pl":"Polish",
+  "pt":"Portuguese","pa":"Punjabi","ro":"Romanian","ru":"Russian","sm":"Samoan","gd":"Scots Gaelic","sr":"Serbian","st":"Sesotho",
+  "sn":"Shona","sd":"Sindhi","si":"Sinhala","sk":"Slovak","sl":"Slovenian","so":"Somali","es":"Spanish","su":"Sundanese",
+  "sw":"Swahili","sv":"Swedish","tg":"Tajik","ta":"Tamil","te":"Telugu","th":"Thai","tr":"Turkish","uk":"Ukrainian",
+  "ur":"Urdu","uz":"Uzbek","vi":"Vietnamese","cy":"Welsh","xh":"Xhosa","yi":"Yiddish","yo":"Yoruba","zu":"Zulu"
 };
-
-// Populate the dropdown
-const langSelect = document.getElementById("lang");
-for (const code in languages) {
-  const option = document.createElement("option");
-  option.value = code;
-  option.textContent = languages[code];
-  langSelect.appendChild(option);
-}
 
 let socket;
 let loggedIn = false;
 let myLang = "en";
 
+// populate language dropdown with search
+const langSearch = document.getElementById("langSearch");
+const langSelect = document.getElementById("lang");
+
+function populateLanguages(filter = "") {
+  langSelect.innerHTML = "";
+  const search = filter.toLowerCase();
+  for (const code in languages) {
+    if (languages[code].toLowerCase().includes(search)) {
+      const option = document.createElement("option");
+      option.value = code;
+      option.textContent = languages[code];
+      langSelect.appendChild(option);
+    }
+  }
+}
+populateLanguages();
+
+langSearch.addEventListener("input", e => populateLanguages(e.target.value));
+langSelect.addEventListener("focus", () => {
+  if (!langSelect.value && langSelect.options.length > 0) langSelect.selectedIndex = 0;
+});
+
 function join() {
   const name = document.getElementById("name").value.trim();
-  myLang = document.getElementById("lang").value;
-  if (!name) return alert("Enter a username");
+  myLang = langSelect.value || "en";
+  if(!name) return alert("Enter a username");
 
   socket = io();
 
@@ -197,29 +102,25 @@ function join() {
     appendSystem(`Joined as ${name}`);
   });
 
-  socket.on("chat_history", msgs => {
-    msgs.forEach(m => appendMessage(m.user, m.text));
-  });
-
+  socket.on("chat_history", msgs => msgs.forEach(m => appendMessage(m.user, m.text)));
   socket.on("chat_message", m => appendMessage(m.user, m.text));
 }
 
 function send() {
   const msgInput = document.getElementById("msg");
   const msg = msgInput.value.trim();
-  if (!msg || !loggedIn) return;
-  socket.emit("send_message", { text: msg, lang: myLang });
+  if(!msg || !loggedIn) return;
+  socket.emit("send_message", { text: msg });
   msgInput.value = "";
 }
 
 function appendMessage(user, text) {
   const chatDiv = document.getElementById("chat");
   const div = document.createElement("div");
-  if (user === "SYSTEM") {
+  if(user === "SYSTEM") {
     div.className = "system-msg";
     div.textContent = text;
   } else {
-    div.className = "chat-message";
     div.innerHTML = `<strong>${user}:</strong> ${text}`;
   }
   chatDiv.appendChild(div);
