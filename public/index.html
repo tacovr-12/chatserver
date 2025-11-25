@@ -4,18 +4,136 @@
 <meta charset="UTF-8">
 <title>Global Chat</title>
 <style>
-  html, body { height: 100%; margin:0; font-family: Arial; display:flex; flex-direction:column; align-items:center; }
-  #chatContainer { flex:1; width:90%; max-width:800px; display:flex; flex-direction:column; margin-top:20px; }
-  #chat { flex:1; width:100%; border:1px solid #ccc; padding:10px; overflow-y:auto; background:#f9f9f9; margin-bottom:10px; box-sizing:border-box; border-radius:8px; }
-  #inputContainer { display:flex; width:100%; gap:10px; }
-  #msg { flex:1; padding:8px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box; }
-  #sendBtn { padding:8px 12px; border-radius:8px; border:none; background:#4CAF50; color:white; cursor:pointer; }
-  #sendBtn:disabled { background:#999; cursor:default; }
-  #loginSection { width:90%; max-width:800px; display:flex; justify-content:center; gap:10px; margin-top:20px; flex-wrap:wrap; }
-  #name, #langSearch { padding:8px; flex:1 1 150px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box; }
-  #lang { width:100%; margin-top:5px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box; }
-  button { cursor:pointer; border-radius:8px; }
-  .system-msg { font-style:italic; color:#555; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: linear-gradient(to right, #ece9e6, #ffffff);
+  }
+
+  h2 {
+    margin-top: 20px;
+    color: #333;
+  }
+
+  #loginSection {
+    width: 100%;
+    max-width: 1000px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+    background: #f5f5f5;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  }
+
+  #name, #langSearch, #lang {
+    padding: 10px;
+    flex: 1 1 200px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+    font-size: 14px;
+  }
+
+  #lang {
+    width: 100%;
+    margin-top: 5px;
+    height: 120px;
+  }
+
+  button {
+    cursor: pointer;
+    border-radius: 8px;
+    border: none;
+    background: #4CAF50;
+    color: white;
+    padding: 10px 16px;
+    font-size: 14px;
+    transition: 0.2s;
+  }
+
+  button:hover:not(:disabled) {
+    background: #45a049;
+  }
+
+  button:disabled {
+    background: #999;
+    cursor: default;
+  }
+
+  #chatContainer {
+    flex: 1;
+    width: 90%;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: column;
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+
+  #chat {
+    flex: 1;
+    width: 100%;
+    border: 1px solid #ccc;
+    padding: 15px;
+    overflow-y: auto;
+    background: #f9f9f9;
+    border-radius: 12px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .chat-bubble {
+    padding: 10px 15px;
+    border-radius: 18px;
+    max-width: 60%;
+    word-wrap: break-word;
+    font-size: 14px;
+  }
+
+  .user-msg {
+    background-color: #4CAF50;
+    color: white;
+    align-self: flex-end;
+  }
+
+  .other-msg {
+    background-color: #ddd;
+    color: #333;
+    align-self: flex-start;
+  }
+
+  .system-msg {
+    font-style: italic;
+    color: #555;
+    align-self: center;
+  }
+
+  #inputContainer {
+    display: flex;
+    width: 100%;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  #msg {
+    flex: 1;
+    padding: 12px;
+    border-radius: 18px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+
 </style>
 </head>
 <body>
@@ -24,7 +142,7 @@
 
 <div id="loginSection">
   <input id="name" placeholder="Enter username" />
-  <div style="position: relative; flex: 1 1 150px;">
+  <div style="position: relative; flex: 1 1 200px;">
     <input type="text" id="langSearch" placeholder="Search language..." />
     <select id="lang" size="6"></select>
   </div>
@@ -41,7 +159,6 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// full list of 200+ languages supported by MyMemory
 const languages = {
   "af":"Afrikaans","sq":"Albanian","am":"Amharic","ar":"Arabic","hy":"Armenian","az":"Azerbaijani","eu":"Basque","be":"Belarusian",
   "bn":"Bengali","bs":"Bosnian","bg":"Bulgarian","ca":"Catalan","ceb":"Cebuano","ny":"Chichewa","zh-CN":"Chinese (Simplified)","zh-TW":"Chinese (Traditional)",
@@ -62,7 +179,6 @@ let socket;
 let loggedIn = false;
 let myLang = "en";
 
-// populate language dropdown with search
 const langSearch = document.getElementById("langSearch");
 const langSelect = document.getElementById("lang");
 
@@ -117,12 +233,8 @@ function send() {
 function appendMessage(user, text) {
   const chatDiv = document.getElementById("chat");
   const div = document.createElement("div");
-  if(user === "SYSTEM") {
-    div.className = "system-msg";
-    div.textContent = text;
-  } else {
-    div.innerHTML = `<strong>${user}:</strong> ${text}`;
-  }
+  div.className = user === "SYSTEM" ? "system-msg" : (user === document.getElementById("name").value ? "chat-bubble user-msg" : "chat-bubble other-msg");
+  div.textContent = text;
   chatDiv.appendChild(div);
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
