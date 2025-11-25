@@ -17,9 +17,9 @@ app.use(express.static(path.join(__dirname, "public")));
 const MESSAGES_FILE = path.join(__dirname, "messages.json");
 let users = {}; // { socketId: { username, lang } }
 let messages = [];
-let translationCache = {}; // { "text|lang": translatedText }
+let translationCache = {}; // { "text|targetLang": translatedText }
 
-// Load messages on start
+// Load messages on startup
 try {
   const data = fs.readFileSync(MESSAGES_FILE, "utf-8");
   messages = JSON.parse(data);
@@ -59,13 +59,12 @@ async function detectLanguage(text) {
 }
 
 // Translate text with caching
-async function translateText(text, targetLang) {
-  if (!targetLang || targetLang === "auto") return text;
+async function translateText(text, targetLang, sourceLang = "auto") {
+  if (!targetLang || targetLang === sourceLang) return text;
   const key = `${text}|${targetLang}`;
   if (translationCache[key]) return translationCache[key];
 
   try {
-    const sourceLang = await detectLanguage(text);
     const res = await fetch("https://libretranslate.com/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -87,7 +86,7 @@ async function translateText(text, targetLang) {
 }
 
 io.on("connection", socket => {
-  // Send chat history
+  // Send all past messages (last 24 hours)
   socket.emit("chat_history", messages);
 
   // Send current online users
@@ -106,11 +105,13 @@ io.on("connection", socket => {
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast translated join message to all users
-    for (const [id, u] of Object.entries(users)) {
-      const translated = await translateText(joinMsg.text, u.lang);
-      io.to(id).emit("chat_message", { ...joinMsg, text: translated });
-    }
+    // Broadcast join message translated for each user
+    await Promise.all(
+      Object.entries(users).map(async ([id, u]) => {
+        const translated = await translateText(joinMsg.text, u.lang, joinMsg.originalLang);
+        io.to(id).emit("chat_message", { ...joinMsg, text: translated });
+      })
+    );
 
     io.emit("user_list", Object.values(users).map(u => u.username));
   });
@@ -126,11 +127,15 @@ io.on("connection", socket => {
     messages.push(messageData);
     cleanupMessages();
 
-    // Broadcast translated message to all
-    for (const [id, u] of Object.entries(users)) {
-      const translated = await translateText(msg, u.lang);
-      io.to(id).emit("chat_message", { ...messageData, text: translated });
-    }
+    // Translate message for all users in parallel
+    await Promise.all(
+      Object.entries(users).map(async ([id, u]) => {
+        const translated = u.lang === messageData.originalLang
+          ? msg
+          : await translateText(msg, u.lang, messageData.originalLang);
+        io.to(id).emit("chat_message", { ...messageData, text: translated });
+      })
+    );
   });
 
   // Disconnect
@@ -143,10 +148,12 @@ io.on("connection", socket => {
     messages.push(leaveMsg);
     cleanupMessages();
 
-    for (const [id, u] of Object.entries(users)) {
-      const translated = await translateText(leaveMsg.text, u.lang);
-      io.to(id).emit("chat_message", { ...leaveMsg, text: translated });
-    }
+    await Promise.all(
+      Object.entries(users).map(async ([id, u]) => {
+        const translated = await translateText(leaveMsg.text, u.lang, leaveMsg.originalLang);
+        io.to(id).emit("chat_message", { ...leaveMsg, text: translated });
+      })
+    );
 
     io.emit("user_list", Object.values(users).map(u => u.username));
   });
