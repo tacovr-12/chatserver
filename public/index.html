@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h3>Join</h3>
+  <input id="name" placeholder="username">
+  <button onclick="join()">Join</button>
+
+  <h3>Chat</h3>
+  <div id="chat" style="height:200px;overflow-y:auto;border:1px solid #aaa;"></div>
+
+  <input id="msg" placeholder="message">
+  <button onclick="sendMsg()">Send</button>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    function join() {
+      const name = document.getElementById("name").value;
+      socket.emit("choose_username", name, res => {
+        if (!res.ok) alert(res.error);
+      });
+    }
+
+    function sendMsg() {
+      const text = document.getElementById("msg").value;
+      socket.emit("send_message", text);
+    }
+
+    socket.on("chat_message", data => {
+      const div = document.getElementById("chat");
+      div.innerHTML += `<p><b>${data.user}:</b> ${data.text}</p>`;
+      div.scrollTop = div.scrollHeight;
+    });
+  </script>
+</body>
+</html>

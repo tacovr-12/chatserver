@@ -1,0 +1,17 @@
+{
+  "name": "koyeb-global-chat",
+  "version": "1.0.0",
+  "description": "Global WebSocket chat for Gizmo clients",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.8.1"
+  }
+}
