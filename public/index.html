@@ -50,12 +50,12 @@ let myLang = "en";
 function join() {
   const name = document.getElementById("name").value.trim();
   myLang = document.getElementById("lang").value;
-  if (!name) return alert("Enter a username");
+  if(!name) return alert("Enter a username");
 
   socket = io();
 
   socket.emit("choose_username", { name, lang: myLang }, res => {
-    if (!res.ok) return alert(res.error);
+    if(!res.ok) return alert(res.error);
 
     loggedIn = true;
     document.getElementById("msg").disabled = false;
@@ -74,7 +74,9 @@ function join() {
 function send() {
   const msgInput = document.getElementById("msg");
   const msg = msgInput.value.trim();
-  if (!msg || !loggedIn) return;
+  if(!msg || !loggedIn) return;
+
+  // Send message along with sender's language
   socket.emit("send_message", { text: msg, lang: myLang });
   msgInput.value = "";
 }
@@ -82,7 +84,7 @@ function send() {
 function appendMessage(user, text) {
   const chatDiv = document.getElementById("chat");
   const div = document.createElement("div");
-  if (user === "SYSTEM") {
+  if(user === "SYSTEM") {
     div.className = "system-msg";
     div.textContent = text;
   } else {

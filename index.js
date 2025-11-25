@@ -42,7 +42,7 @@ setInterval(cleanupMessages, 60 * 60 * 1000);
 
 // Translate using MyMemory
 async function translateText(text, sourceLang, targetLang) {
-  if (!targetLang || sourceLang === targetLang) return text;
+  if (!targetLang || targetLang === sourceLang) return text;
 
   const key = `${text}|${sourceLang}|${targetLang}`;
   if (translationCache[key]) return translationCache[key];
@@ -53,6 +53,7 @@ async function translateText(text, sourceLang, targetLang) {
       `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`
     );
     const data = await res.json();
+
     const translated = data.responseData?.translatedText || text;
     translationCache[key] = translated;
     return translated;
@@ -70,22 +71,15 @@ io.on("connection", socket => {
   socket.on("choose_username", async ({ name, lang }, cb) => {
     name = name.trim();
     if (!name) return cb({ ok: false, error: "Username required" });
-    if (Object.values(users).some(u => u.username === name))
-      return cb({ ok: false, error: "Username taken" });
+    if (Object.values(users).some(u => u.username === name)) return cb({ ok: false, error: "Username taken" });
 
     users[socket.id] = { username: name, lang };
     cb({ ok: true });
 
-    const joinMsg = {
-      user: "SYSTEM",
-      text: `${name} joined.`,
-      lang: "en",
-      timestamp: Date.now()
-    };
+    const joinMsg = { user: "SYSTEM", text: `${name} joined.`, lang: "en", timestamp: Date.now() };
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast join message to all users, translated
     await Promise.all(
       Object.entries(users).map(async ([id, u]) => {
         const translated = await translateText(joinMsg.text, joinMsg.lang, u.lang);
@@ -94,7 +88,7 @@ io.on("connection", socket => {
     );
   });
 
-  socket.on("send_message", async ({ text }) => {
+  socket.on("send_message", async ({ text, lang }) => {
     const user = users[socket.id];
     if (!user) return;
     const msg = text.trim();
@@ -103,13 +97,12 @@ io.on("connection", socket => {
     const messageData = {
       user: user.username,
       text: msg,
-      lang: user.lang, // store sender language
+      lang: lang || user.lang,
       timestamp: Date.now()
     };
     messages.push(messageData);
     cleanupMessages();
 
-    // Translate for every recipient
     await Promise.all(
       Object.entries(users).map(async ([id, u]) => {
         const translated = await translateText(messageData.text, messageData.lang, u.lang);
@@ -123,12 +116,7 @@ io.on("connection", socket => {
     if (!user) return;
     delete users[socket.id];
 
-    const leaveMsg = {
-      user: "SYSTEM",
-      text: `${user.username} left.`,
-      lang: "en",
-      timestamp: Date.now()
-    };
+    const leaveMsg = { user: "SYSTEM", text: `${user.username} left.`, lang: "en", timestamp: Date.now() };
     messages.push(leaveMsg);
     cleanupMessages();
 
