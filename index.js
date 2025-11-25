@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import fetch from "node-fetch"; 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,7 +43,7 @@ function cleanupMessages() {
 }
 setInterval(cleanupMessages, 60 * 60 * 1000);
 
-// Language detection using LibreTranslate
+// Detect language
 async function detectLanguage(text) {
   try {
     const res = await fetch("https://libretranslate.com/detect", {
@@ -51,7 +52,7 @@ async function detectLanguage(text) {
       body: JSON.stringify({ q: text })
     });
     const data = await res.json();
-    return data[0].language || "auto";
+    return data[0]?.language || "auto";
   } catch (err) {
     console.error("Language detect error:", err);
     return "auto";
@@ -78,6 +79,7 @@ async function translateText(text, targetLang, sourceLang = "auto") {
     const data = await res.json();
     const translated = data.translatedText || text;
     translationCache[key] = translated;
+    console.log(`Translated "${text}" (${sourceLang}→${targetLang}) → "${translated}"`);
     return translated;
   } catch (err) {
     console.error("Translation error:", err);
@@ -86,7 +88,7 @@ async function translateText(text, targetLang, sourceLang = "auto") {
 }
 
 io.on("connection", socket => {
-  // Send all past messages (last 24 hours)
+  // Send past messages
   socket.emit("chat_history", messages);
 
   // Send current online users
@@ -105,7 +107,7 @@ io.on("connection", socket => {
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast join message translated for each user
+    // Broadcast join message translated
     await Promise.all(
       Object.entries(users).map(async ([id, u]) => {
         const translated = await translateText(joinMsg.text, u.lang, joinMsg.originalLang);
@@ -127,7 +129,7 @@ io.on("connection", socket => {
     messages.push(messageData);
     cleanupMessages();
 
-    // Translate message for all users in parallel
+    // Translate message for all users
     await Promise.all(
       Object.entries(users).map(async ([id, u]) => {
         const translated = u.lang === messageData.originalLang
