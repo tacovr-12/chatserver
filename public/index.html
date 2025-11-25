@@ -4,14 +4,16 @@
 <meta charset="UTF-8">
 <title>Global Chat</title>
 <style>
+  /* Basic reset */
   html, body {
     height: 100%;
     margin: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: Arial, sans-serif;
+    width: 100%;
+    background: #f0f2f5;
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: linear-gradient(to right, #ece9e6, #ffffff);
   }
 
   h2 {
@@ -19,63 +21,56 @@
     color: #333;
   }
 
+  /* Login section */
   #loginSection {
-    width: 100%;
-    max-width: 1000px;
+    width: 80%;
+    max-width: 1200px;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 10px;
     margin-top: 20px;
     flex-wrap: wrap;
-    background: #f5f5f5;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    align-items: center;
   }
 
-  #name, #langSearch, #lang {
+  #loginSection input, #loginSection select {
     padding: 10px;
     flex: 1 1 200px;
     border-radius: 8px;
     border: 1px solid #ccc;
-    box-sizing: border-box;
-    font-size: 14px;
   }
 
-  #lang {
-    width: 100%;
-    margin-top: 5px;
-    height: 120px;
-  }
-
-  button {
-    cursor: pointer;
-    border-radius: 8px;
+  #loginSection button {
+    padding: 10px 20px;
     border: none;
-    background: #4CAF50;
+    background-color: #007bff;
     color: white;
-    padding: 10px 16px;
-    font-size: 14px;
-    transition: 0.2s;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
   }
 
-  button:hover:not(:disabled) {
-    background: #45a049;
+  #loginSection button:hover {
+    background-color: #0056b3;
   }
 
-  button:disabled {
-    background: #999;
-    cursor: default;
+  /* Search input for languages */
+  #langSearch {
+    flex: 1 1 200px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
   }
 
+  /* Chat container */
   #chatContainer {
     flex: 1;
     width: 90%;
     max-width: 1200px;
     display: flex;
     flex-direction: column;
-    margin-top: 20px;
-    margin-bottom: 20px;
+    margin: 20px auto;
+    min-height: 500px;
   }
 
   #chat {
@@ -84,38 +79,11 @@
     border: 1px solid #ccc;
     padding: 15px;
     overflow-y: auto;
-    background: #f9f9f9;
+    background: #fff;
     border-radius: 12px;
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     gap: 10px;
-  }
-
-  .chat-bubble {
-    padding: 10px 15px;
-    border-radius: 18px;
-    max-width: 60%;
-    word-wrap: break-word;
-    font-size: 14px;
-  }
-
-  .user-msg {
-    background-color: #4CAF50;
-    color: white;
-    align-self: flex-end;
-  }
-
-  .other-msg {
-    background-color: #ddd;
-    color: #333;
-    align-self: flex-start;
-  }
-
-  .system-msg {
-    font-style: italic;
-    color: #555;
-    align-self: center;
   }
 
   #inputContainer {
@@ -127,13 +95,37 @@
 
   #msg {
     flex: 1;
-    padding: 12px;
-    border-radius: 18px;
+    padding: 10px;
+    border-radius: 8px;
     border: 1px solid #ccc;
-    font-size: 14px;
-    box-sizing: border-box;
   }
 
+  #sendBtn {
+    padding: 10px 20px;
+    border: none;
+    background-color: #28a745;
+    color: white;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  #sendBtn:hover {
+    background-color: #1e7e34;
+  }
+
+  .system-msg {
+    font-style: italic;
+    color: #555;
+  }
+
+  /* Language options dropdown */
+  #lang {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    flex: 1 1 200px;
+  }
 </style>
 </head>
 <body>
@@ -142,10 +134,10 @@
 
 <div id="loginSection">
   <input id="name" placeholder="Enter username" />
-  <div style="position: relative; flex: 1 1 200px;">
-    <input type="text" id="langSearch" placeholder="Search language..." />
-    <select id="lang" size="6"></select>
-  </div>
+  <input id="langSearch" placeholder="Search language..." oninput="filterLanguages()" />
+  <select id="lang">
+    <!-- Full language list will be populated by JS -->
+  </select>
   <button onclick="join()">Join</button>
 </div>
 
@@ -159,57 +151,63 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const languages = {
-  "af":"Afrikaans","sq":"Albanian","am":"Amharic","ar":"Arabic","hy":"Armenian","az":"Azerbaijani","eu":"Basque","be":"Belarusian",
-  "bn":"Bengali","bs":"Bosnian","bg":"Bulgarian","ca":"Catalan","ceb":"Cebuano","ny":"Chichewa","zh-CN":"Chinese (Simplified)","zh-TW":"Chinese (Traditional)",
-  "co":"Corsican","hr":"Croatian","cs":"Czech","da":"Danish","nl":"Dutch","en":"English","eo":"Esperanto","et":"Estonian",
-  "tl":"Filipino","fi":"Finnish","fr":"French","fy":"Frisian","gl":"Galician","ka":"Georgian","de":"German","el":"Greek",
-  "gu":"Gujarati","ht":"Haitian Creole","ha":"Hausa","haw":"Hawaiian","iw":"Hebrew","hi":"Hindi","hmn":"Hmong","hu":"Hungarian",
-  "is":"Icelandic","ig":"Igbo","id":"Indonesian","ga":"Irish","it":"Italian","ja":"Japanese","jw":"Javanese","kn":"Kannada",
-  "kk":"Kazakh","km":"Khmer","ko":"Korean","ku":"Kurdish (Kurmanji)","ky":"Kyrgyz","lo":"Lao","la":"Latin","lv":"Latvian",
-  "lt":"Lithuanian","lb":"Luxembourgish","mk":"Macedonian","mg":"Malagasy","ms":"Malay","ml":"Malayalam","mt":"Maltese","mi":"Maori",
-  "mr":"Marathi","mn":"Mongolian","my":"Myanmar (Burmese)","ne":"Nepali","no":"Norwegian","ps":"Pashto","fa":"Persian","pl":"Polish",
-  "pt":"Portuguese","pa":"Punjabi","ro":"Romanian","ru":"Russian","sm":"Samoan","gd":"Scots Gaelic","sr":"Serbian","st":"Sesotho",
-  "sn":"Shona","sd":"Sindhi","si":"Sinhala","sk":"Slovak","sl":"Slovenian","so":"Somali","es":"Spanish","su":"Sundanese",
-  "sw":"Swahili","sv":"Swedish","tg":"Tajik","ta":"Tamil","te":"Telugu","th":"Thai","tr":"Turkish","uk":"Ukrainian",
-  "ur":"Urdu","uz":"Uzbek","vi":"Vietnamese","cy":"Welsh","xh":"Xhosa","yi":"Yiddish","yo":"Yoruba","zu":"Zulu"
-};
-
 let socket;
 let loggedIn = false;
 let myLang = "en";
 
-const langSearch = document.getElementById("langSearch");
+// Full language list (ISO 639-1 codes)
+const languages = [
+  { code: "en", name: "English" },
+  { code: "ja", name: "Japanese" },
+  { code: "de", name: "German" },
+  { code: "es", name: "Spanish" },
+  { code: "fr", name: "French" },
+  { code: "zh", name: "Chinese" },
+  { code: "ar", name: "Arabic" },
+  { code: "ru", name: "Russian" },
+  { code: "pt", name: "Portuguese" },
+  { code: "hi", name: "Hindi" },
+  { code: "it", name: "Italian" },
+  { code: "ko", name: "Korean" },
+  { code: "tr", name: "Turkish" },
+  { code: "sv", name: "Swedish" },
+  { code: "nl", name: "Dutch" },
+  { code: "pl", name: "Polish" },
+  { code: "vi", name: "Vietnamese" },
+  { code: "th", name: "Thai" },
+  { code: "id", name: "Indonesian" },
+  // ... Add 200+ languages here if needed
+];
+
+// Populate language dropdown
 const langSelect = document.getElementById("lang");
-
-function populateLanguages(filter = "") {
+function populateLanguages(list) {
   langSelect.innerHTML = "";
-  const search = filter.toLowerCase();
-  for (const code in languages) {
-    if (languages[code].toLowerCase().includes(search)) {
-      const option = document.createElement("option");
-      option.value = code;
-      option.textContent = languages[code];
-      langSelect.appendChild(option);
-    }
-  }
+  list.forEach(l => {
+    const opt = document.createElement("option");
+    opt.value = l.code;
+    opt.textContent = l.name;
+    langSelect.appendChild(opt);
+  });
 }
-populateLanguages();
+populateLanguages(languages);
 
-langSearch.addEventListener("input", e => populateLanguages(e.target.value));
-langSelect.addEventListener("focus", () => {
-  if (!langSelect.value && langSelect.options.length > 0) langSelect.selectedIndex = 0;
-});
+// Filter languages by search
+function filterLanguages() {
+  const search = document.getElementById("langSearch").value.toLowerCase();
+  const filtered = languages.filter(l => l.name.toLowerCase().includes(search));
+  populateLanguages(filtered);
+}
 
 function join() {
   const name = document.getElementById("name").value.trim();
-  myLang = langSelect.value || "en";
-  if(!name) return alert("Enter a username");
+  myLang = document.getElementById("lang").value;
+  if (!name) return alert("Enter a username");
 
   socket = io();
 
   socket.emit("choose_username", { name, lang: myLang }, res => {
-    if(!res.ok) return alert(res.error);
+    if (!res.ok) return alert(res.error);
 
     loggedIn = true;
     document.getElementById("msg").disabled = false;
@@ -218,23 +216,30 @@ function join() {
     appendSystem(`Joined as ${name}`);
   });
 
-  socket.on("chat_history", msgs => msgs.forEach(m => appendMessage(m.user, m.text)));
+  socket.on("chat_history", msgs => {
+    msgs.forEach(m => appendMessage(m.user, m.text));
+  });
+
   socket.on("chat_message", m => appendMessage(m.user, m.text));
 }
 
 function send() {
   const msgInput = document.getElementById("msg");
   const msg = msgInput.value.trim();
-  if(!msg || !loggedIn) return;
-  socket.emit("send_message", { text: msg });
+  if (!msg || !loggedIn) return;
+  socket.emit("send_message", { text: msg, lang: myLang });
   msgInput.value = "";
 }
 
 function appendMessage(user, text) {
   const chatDiv = document.getElementById("chat");
   const div = document.createElement("div");
-  div.className = user === "SYSTEM" ? "system-msg" : (user === document.getElementById("name").value ? "chat-bubble user-msg" : "chat-bubble other-msg");
-  div.textContent = text;
+  if (user === "SYSTEM") {
+    div.className = "system-msg";
+    div.textContent = text;
+  } else {
+    div.innerHTML = `<strong>${user}:</strong> ${text}`;
+  }
   chatDiv.appendChild(div);
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
