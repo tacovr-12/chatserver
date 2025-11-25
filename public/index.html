@@ -52,12 +52,12 @@
   <div id="chat-container">
     <h2>Global Chat</h2>
     <input id="name" placeholder="Enter username to chat" />
-    <button onclick="join()">Login</button>
+    <button id="loginBtn">Login</button>
 
     <div id="chat"></div>
 
     <input id="msg" placeholder="Message" disabled />
-    <button onclick="send()" disabled>Send</button>
+    <button id="sendBtn" disabled>Send</button>
   </div>
 
   <div id="users">
@@ -67,7 +67,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    let socket;
+    let socket = io(); // create the socket once
     let loggedIn = false;
 
     function escapeHTML(str) {
@@ -86,44 +86,49 @@
       });
     }
 
-    function join() {
+    // Update chat area
+    function addMessage(msg) {
+      const chatDiv = document.getElementById("chat");
+      chatDiv.innerHTML += `<div><strong>${escapeHTML(msg.user)}:</strong> ${escapeHTML(msg.text)}</div>`;
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    // Receive chat history and online users
+    socket.on("chat_history", msgs => {
+      msgs.forEach(addMessage);
+    });
+
+    socket.on("chat_message", addMessage);
+    socket.on("user_list", updateUserList);
+
+    // Login function
+    document.getElementById("loginBtn").onclick = () => {
       const name = document.getElementById("name").value.trim();
       if (!name) return alert("Enter a username");
 
-      socket = io();
-
-      socket.on("user_list", updateUserList);
-
-      socket.on("chat_history", msgs => {
-        const chatDiv = document.getElementById("chat");
-        chatDiv.innerHTML = "";
-        msgs.forEach(msg => {
-          chatDiv.innerHTML += `<div><strong>${escapeHTML(msg.user)}:</strong> ${escapeHTML(msg.text)}</div>`;
-        });
-        chatDiv.scrollTop = chatDiv.scrollHeight;
-      });
-
-      socket.on("chat_message", msg => {
-        const chatDiv = document.getElementById("chat");
-        chatDiv.innerHTML += `<div><strong>${escapeHTML(msg.user)}:</strong> ${escapeHTML(msg.text)}</div>`;
-        chatDiv.scrollTop = chatDiv.scrollHeight;
-      });
-
       socket.emit("choose_username", name, res => {
         if (!res.ok) return alert(res.error);
+
         loggedIn = true;
         document.getElementById("msg").disabled = false;
-        document.querySelector("#chat-container button").disabled = true;
-        document.querySelector("#msg").focus();
+        document.getElementById("sendBtn").disabled = false;
+        document.getElementById("loginBtn").disabled = true;
+        document.getElementById("name").disabled = true;
       });
-    }
+    };
 
-    function send() {
+    // Send message function
+    document.getElementById("sendBtn").onclick = () => {
       const msg = document.getElementById("msg").value.trim();
-      if (!msg || !socket || !loggedIn) return;
+      if (!msg || !loggedIn) return;
       socket.emit("send_message", msg);
       document.getElementById("msg").value = "";
-    }
+    };
+
+    // Press Enter to send message
+    document.getElementById("msg").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") document.getElementById("sendBtn").click();
+    });
   </script>
 </body>
 </html>
