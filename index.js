@@ -16,8 +16,8 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const MESSAGES_FILE = path.join(__dirname, "messages.json");
 
-let users = {};        // { socketId: { username, lang } }
-let messages = [];     // { user, text, timestamp, roomId }
+let users = {}; // socketId -> { username, lang }
+let messages = []; // { user, text, timestamp, roomId }
 
 const GLOBAL_ROOM_ID = "global";
 let rooms = {
@@ -37,13 +37,14 @@ try {
   messages = [];
 }
 
+// Save messages to disk
 function saveMessages() {
   fs.writeFile(MESSAGES_FILE, JSON.stringify(messages), err => {
     if (err) console.error("Failed to save messages:", err);
   });
 }
 
-// Clean up old messages
+// Remove old messages (>24h)
 function cleanupMessages() {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   messages = messages.filter(m => m.timestamp > cutoff);
@@ -51,7 +52,7 @@ function cleanupMessages() {
 }
 setInterval(cleanupMessages, 60 * 60 * 1000);
 
-// Clean up old rooms (except global)
+// Remove old rooms (except global)
 function cleanupRooms() {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const id in rooms) {
@@ -66,6 +67,11 @@ io.on("connection", socket => {
   // Always send the room list (global included)
   socket.emit("room_list", rooms);
 
+  // Send previous messages for global room
+  messages
+    .filter(m => m.roomId === GLOBAL_ROOM_ID)
+    .forEach(m => socket.emit("chat_message", m));
+
   // User chooses username + language
   socket.on("choose_username", ({ name, lang }, cb) => {
     name = name.trim();
@@ -77,13 +83,10 @@ io.on("connection", socket => {
     cb({ ok: true });
   });
 
-  // JOIN ROOM
-  socket.on("join_room", ({ roomId, password }, cb) => {
+  // Join room
+  socket.on("join_room", ({ roomId }, cb) => {
     const room = rooms[roomId];
     if (!room) return cb({ ok: false, error: "Room not found" });
-
-    if (room.isPrivate && room.password !== password)
-      return cb({ ok: false, error: "Wrong password" });
 
     room.users.add(socket.id);
     socket.join(roomId);
@@ -102,14 +105,15 @@ io.on("connection", socket => {
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Send join message to everyone in room
-    room.users.forEach(sid => io.to(sid).emit("chat_message", joinMsg));
+    // Broadcast to room
+    io.to(roomId).emit("chat_message", joinMsg);
   });
 
-  // SEND MESSAGE
+  // Send message
   socket.on("send_message", ({ text, roomId }) => {
     const user = users[socket.id];
     if (!user) return;
+
     const msg = text.trim();
     if (!msg) return;
 
@@ -125,16 +129,28 @@ io.on("connection", socket => {
     messages.push(messageData);
     cleanupMessages();
 
-    // Send to everyone in the room
-    room.users.forEach(sid => io.to(sid).emit("chat_message", messageData));
+    io.to(roomId).emit("chat_message", messageData);
   });
 
-  // DISCONNECT
+  // Disconnect
   socket.on("disconnect", () => {
+    const user = users[socket.id];
     delete users[socket.id];
-    for (const id in rooms) rooms[id].users.delete(socket.id);
+
+    for (const id in rooms) {
+      const room = rooms[id];
+      if (room.users.has(socket.id)) {
+        room.users.delete(socket.id);
+        io.to(id).emit("chat_message", {
+          user: "SYSTEM",
+          text: `${user?.username || "A user"} left.`,
+          timestamp: Date.now(),
+          roomId: id
+        });
+      }
+    }
   });
 });
 
 const PORT = process.env.PORT || 4000;
-httpServer.listen(PORT, () => console.log(`Listening on ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
