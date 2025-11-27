@@ -23,7 +23,6 @@
   h1{margin:0;font-size:18px;color:var(--accent)}
   .sub{color:#9fe7b8;font-size:12px}
   .card{background:linear-gradient(180deg, rgba(2,6,3,0.6), rgba(5,12,8,0.4));border:1px solid rgba(0,255,106,0.06);padding:12px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.6)}
-  /* left column: login + rooms */
   .left{display:flex;flex-direction:column;gap:12px}
   label{font-size:12px;color:#8ff7c6;display:block;margin-bottom:6px}
   input[type="text"], input[type="password"], select, textarea {
@@ -39,17 +38,9 @@
   .btn.danger{background:linear-gradient(180deg,var(--danger),#b33);color:#111}
   .row{display:flex;gap:8px}
   .lang-search{display:flex;flex-direction:column;gap:8px}
-  /* language select area */
   .lang-box{display:flex;flex-direction:column;gap:8px}
   #langList{height:130px;overflow:auto;padding:6px;border-radius:8px;background:rgba(0,0,0,0.12);border:1px solid rgba(0,255,106,0.03)}
   #langList option{background:transparent;color:var(--text);padding:6px}
-  /* rooms list */
-  .rooms{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow:auto}
-  .room-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;border:1px dashed rgba(0,255,106,0.04);background:linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.02))}
-  .room-meta{font-size:13px}
-  .room-private{color:#ffd28f;font-size:11px;margin-left:8px}
-  .small{font-size:12px;color:#9fe7b8}
-  /* right column: chat */
   .chat-wrap{display:flex;flex-direction:column;height:78vh}
   .chat-box{flex:1;border-radius:12px;padding:14px;background:linear-gradient(180deg,#041109,#051611);overflow:auto;border:1px solid rgba(0,255,106,0.04)}
   .message{max-width:78%;padding:10px 14px;border-radius:12px;margin-bottom:10px;word-wrap:break-word;line-height:1.2}
@@ -63,9 +54,6 @@
   .room-title{font-weight:700;color:var(--accent)}
   .muted{color:#79d7a2;font-size:13px}
   .notice{color:#9fe7b8;font-size:13px;padding:6px;background:rgba(0,0,0,0.12);border-radius:8px;border:1px solid rgba(0,255,106,0.02)}
-  /* search fields */
-  #roomSearch, #langSearch{padding:8px;border-radius:8px;border:1px solid rgba(0,255,106,0.04);background:transparent;color:var(--text)}
-  /* responsive */
   @media (max-width:1000px){
     .app{grid-template-columns:1fr; padding:12px}
     .chat-wrap{height:60vh}
@@ -82,7 +70,6 @@
     <div class="sub">Status: <span id="connStatus" class="muted">disconnected</span></div>
   </div>
 
-  <!-- LEFT: login, language, create room, rooms list -->
   <div class="left">
     <div class="card">
       <div style="display:flex;gap:10px;align-items:center">
@@ -104,40 +91,17 @@
       <div class="row" style="margin-top:10px">
         <button id="enterBtn" class="btn">Set & Connect</button>
         <button id="leaveBtn" class="btn ghost" style="display:none">Disconnect</button>
+        <button id="joinGlobalBtn" class="btn ghost">Join Global</button>
       </div>
       <div style="margin-top:8px" class="small">Pick any ISO 639-1 code. Search filters by name.</div>
     </div>
-
-    <div class="card">
-      <label>Create Room</label>
-      <input id="newRoomName" type="text" placeholder="Room name (required)">
-      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
-        <label style="width:120px" class="small">Visibility</label>
-        <select id="roomVisibility" style="flex:1">
-          <option value="public">Public</option>
-          <option value="private">Private (password)</option>
-        </select>
-      </div>
-      <input id="roomPassword" type="password" placeholder="Password (if private)" style="margin-top:8px;display:none">
-      <div style="display:flex;gap:8px;margin-top:10px">
-        <button id="createRoomBtn" class="btn ghost">Create Room</button>
-        <button id="refreshRooms" class="btn">Refresh</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <label>Rooms <span style="font-size:12px;color:#9fe7b8;margin-left:8px" id="roomsCount">0</span></label>
-      <input id="roomSearch" placeholder="Search rooms..." style="margin-bottom:8px">
-      <div class="rooms" id="roomsContainer"></div>
-    </div>
   </div>
 
-  <!-- RIGHT: chat -->
   <div class="chat-wrap">
     <div class="card right-top">
       <div>
         <div class="room-title" id="activeRoomName">(not in a room)</div>
-        <div class="muted" id="activeRoomMeta">join or create a room to start</div>
+        <div class="muted" id="activeRoomMeta">join to start chatting</div>
       </div>
       <div style="text-align:right">
         <div class="small">You: <span id="youName">—</span></div>
@@ -148,7 +112,7 @@
     <div class="chat-box card" id="chatBox" aria-live="polite"></div>
 
     <div class="chat-input">
-      <input id="message" placeholder="Type a message (join a room first)" disabled>
+      <input id="message" placeholder="Type a message" disabled>
       <button id="sendBtn" class="btn" disabled>Send</button>
     </div>
   </div>
@@ -156,26 +120,16 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-/* Single file client logic for rooms + translation server */
 const socket = io();
 const connStatus = document.getElementById('connStatus');
 const enterBtn = document.getElementById('enterBtn');
 const leaveBtn = document.getElementById('leaveBtn');
+const joinGlobalBtn = document.getElementById('joinGlobalBtn');
 const usernameInput = document.getElementById('username');
 const langSearch = document.getElementById('langSearch');
 const langList = document.getElementById('langList');
 const youName = document.getElementById('youName');
 const youLang = document.getElementById('youLang');
-
-const newRoomName = document.getElementById('newRoomName');
-const roomVisibility = document.getElementById('roomVisibility');
-const roomPassword = document.getElementById('roomPassword');
-const createRoomBtn = document.getElementById('createRoomBtn');
-const refreshRooms = document.getElementById('refreshRooms');
-const roomsContainer = document.getElementById('roomsContainer');
-const roomsCount = document.getElementById('roomsCount');
-const roomSearch = document.getElementById('roomSearch');
-
 const chatBox = document.getElementById('chatBox');
 const messageInput = document.getElementById('message');
 const sendBtn = document.getElementById('sendBtn');
@@ -184,27 +138,12 @@ const activeRoomMeta = document.getElementById('activeRoomMeta');
 
 let localName = null;
 let localLang = 'en';
-let currentRoomId = null;
-let rooms = {}; // local cached room list
+const GLOBAL_ROOM = 'global';
 
-const LANGS = {
-"af":"Afrikaans","sq":"Albanian","am":"Amharic","ar":"Arabic","hy":"Armenian","az":"Azerbaijani","eu":"Basque","be":"Belarusian",
-"bn":"Bengali","bs":"Bosnian","bg":"Bulgarian","ca":"Catalan","ceb":"Cebuano","ny":"Chichewa","zh-CN":"Chinese (Simplified)","zh-TW":"Chinese (Traditional)",
-"co":"Corsican","hr":"Croatian","cs":"Czech","da":"Danish","nl":"Dutch","en":"English","eo":"Esperanto","et":"Estonian",
-"tl":"Filipino","fi":"Finnish","fr":"French","fy":"Frisian","gl":"Galician","ka":"Georgian","de":"German","el":"Greek",
-"gu":"Gujarati","ht":"Haitian Creole","ha":"Hausa","haw":"Hawaiian","he":"Hebrew","hi":"Hindi","hmn":"Hmong","hu":"Hungarian",
-"is":"Icelandic","ig":"Igbo","id":"Indonesian","ga":"Irish","it":"Italian","ja":"Japanese","jw":"Javanese","kn":"Kannada",
-"kk":"Kazakh","km":"Khmer","ko":"Korean","ku":"Kurdish","ky":"Kyrgyz","lo":"Lao","la":"Latin","lv":"Latvian",
-"lt":"Lithuanian","lb":"Luxembourgish","mk":"Macedonian","mg":"Malagasy","ms":"Malay","ml":"Malayalam","mt":"Maltese","mi":"Maori",
-"mr":"Marathi","mn":"Mongolian","my":"Myanmar (Burmese)","ne":"Nepali","no":"Norwegian","ps":"Pashto","fa":"Persian","pl":"Polish",
-"pt":"Portuguese","pa":"Punjabi","ro":"Romanian","ru":"Russian","sm":"Samoan","gd":"Scots Gaelic","sr":"Serbian","st":"Sesotho",
-"sn":"Shona","sd":"Sindhi","si":"Sinhala","sk":"Slovak","sl":"Slovenian","so":"Somali","es":"Spanish","su":"Sundanese",
-"sw":"Swahili","sv":"Swedish","tg":"Tajik","ta":"Tamil","te":"Telugu","th":"Thai","tr":"Turkish","uk":"Ukrainian",
-"ur":"Urdu","uz":"Uzbek","vi":"Vietnamese","cy":"Welsh","xh":"Xhosa","yi":"Yiddish","yo":"Yoruba","zu":"Zulu"
-};
-
-function populateLangs(filter = ''){
-  langList.innerHTML = '';
+/* --- language map --- */
+const LANGS = {"en":"English","es":"Spanish","fr":"French","de":"German","zh-CN":"Chinese (Simplified)","ja":"Japanese"};
+function populateLangs(filter=''){
+  langList.innerHTML='';
   const q = filter.trim().toLowerCase();
   for(const code in LANGS){
     const name = LANGS[code];
@@ -215,149 +154,101 @@ function populateLangs(filter = ''){
       langList.appendChild(opt);
     }
   }
-  if(!langList.value && langList.options.length) langList.selectedIndex = 0;
+  if(!langList.value && langList.options.length) langList.selectedIndex=0;
 }
 populateLangs();
-langSearch.addEventListener('input', e => populateLangs(e.target.value));
+langSearch.addEventListener('input', e=>populateLangs(e.target.value));
 
-roomVisibility.addEventListener('change', () => {
-  roomPassword.style.display = roomVisibility.value === 'private' ? 'block' : 'none';
-});
+/* connection */
+socket.on('connect', ()=>{ connStatus.textContent='connected'; connStatus.style.color='var(--accent)'; });
+socket.on('disconnect', ()=>{ connStatus.textContent='disconnected'; connStatus.style.color='#999'; });
+socket.on('chat_message', m=>appendMessageUI(m));
 
-socket.on('connect', () => {
-  connStatus.textContent = 'connected';
-  connStatus.style.color = 'var(--accent)';
-  socket.emit('room_list');
-});
-socket.on('disconnect', () => {
-  connStatus.textContent = 'disconnected';
-  connStatus.style.color = '#999';
-});
-
-socket.on('room_list', (serverRooms) => {
-  rooms = serverRooms || {};
-  renderRooms();
-});
-
-socket.on('chat_message', m => {
-  appendMessageUI(m);
-});
-
-enterBtn.addEventListener('click', async () => {
-  const name = usernameInput.value.trim();
-  const lang = (langList.value || 'en').toString();
+/* set username & language */
+enterBtn.addEventListener('click',()=>{
+  const name=usernameInput.value.trim();
+  const lang=(langList.value||'en').toString();
   if(!name){ alert('Username required'); return; }
-  localName = name;
-  localLang = lang;
-  youName.textContent = localName;
-  youLang.textContent = localLang;
-  socket.emit('choose_username', { name: localName, lang: localLang }, res => {
-    if(!res || !res.ok){ alert(res?.error || 'choose_username failed'); return; }
-    enterBtn.style.display = 'none';
-    leaveBtn.style.display = 'inline-block';
-    socket.emit('request_rooms');
+  localName=name;
+  localLang=lang;
+  youName.textContent=localName;
+  youLang.textContent=localLang;
+  socket.emit('choose_username',{name:localName,lang:localLang},res=>{
+    if(!res||!res.ok){ alert(res?.error||'choose_username failed'); return; }
+    enterBtn.style.display='none';
+    leaveBtn.style.display='inline-block';
   });
 });
 
-leaveBtn.addEventListener('click', () => {
+/* leave chat */
+leaveBtn.addEventListener('click',()=>{
   socket.disconnect();
-  enterBtn.style.display = 'inline-block';
-  leaveBtn.style.display = 'none';
-  connStatus.textContent = 'disconnected';
-  messageInput.disabled = true;
-  sendBtn.disabled = true;
+  enterBtn.style.display='inline-block';
+  leaveBtn.style.display='none';
+  messageInput.disabled=true;
+  sendBtn.disabled=true;
+  activeRoomName.textContent='(not in a room)';
+  activeRoomMeta.textContent='join to start chatting';
 });
 
-createRoomBtn.addEventListener('click', () => {
-  const name = newRoomName.value.trim();
-  const isPrivate = roomVisibility.value === 'private';
-  const pwd = roomPassword.value || null;
-  if(!name){ alert('Room name required'); return; }
-  socket.emit('create_room', { name, isPrivate, password: pwd }, (res) => {
-    if(!res || !res.ok){ alert(res?.error || 'Failed to create'); return; }
-    newRoomName.value = '';
-    roomPassword.value = '';
-    roomVisibility.value = 'public';
-    roomPassword.style.display = 'none';
-  });
+/* join global */
+joinGlobalBtn.addEventListener('click',()=>joinRoom(GLOBAL_ROOM));
+
+/* join room helper (only global room) */
+function joinRoom(roomId){
+  if(!localName){ alert('Set your username & language first'); return; }
+  currentRoomId = roomId;
+  activeRoomName.textContent='GLOBAL CHAT';
+  activeRoomMeta.textContent='Room ID: global • Joined';
+  chatBox.innerHTML='';
+  messageInput.disabled=false;
+  sendBtn.disabled=false;
+  messageInput.focus();
+  appendSystemUI('Joined global chat');
+}
+
+/* send message */
+sendBtn.addEventListener('click',()=>{
+  const txt=messageInput.value.trim();
+  if(!txt) return;
+  socket.emit('send_message',{text:txt,roomId:GLOBAL_ROOM});
+  messageInput.value='';
 });
 
-refreshRooms.addEventListener('click', () => socket.emit('request_rooms'));
-roomSearch.addEventListener('input', () => renderRooms(roomSearch.value.trim()));
+/* append system message */
+function appendSystemUI(text){
+  const el=document.createElement('div');
+  el.className='msg-sys';
+  el.textContent=text;
+  chatBox.appendChild(el);
+  chatBox.scrollTop=chatBox.scrollHeight;
+}
 
-function renderRooms(filter = ''){
-  roomsContainer.innerHTML = '';
-  const keys = Object.keys(rooms);
-  roomsCount.textContent = keys.length;
-  const q = filter.toLowerCase();
-  const ordered = keys.sort((a,b)=>{
-    const A = (rooms[a].name || a).toLowerCase();
-    const B = (rooms[b].name || b).toLowerCase();
-    return A.localeCompare(B);
-  });
-  for(const id of ordered){
-    const r = rooms[id];
-    if(q && !(r.name.toLowerCase().includes(q) || id.toLowerCase().includes(q))) continue;
-    const div = document.createElement('div');
-    div.className = 'room-item';
-    const meta = document.createElement('div');
-    meta.innerHTML = `<span class="room-meta">${r.name}</span>` + (r.isPrivate ? '<span class="room-private">🔒</span>' : '');
-    const btnJoin = document.createElement('button');
-    btnJoin.className = 'btn ghost';
-    btnJoin.textContent = 'Join';
-    btnJoin.onclick = () => joinRoom(id, r.isPrivate ? prompt('Password for room?') : null);
-    
-    // NEW: Join Global button
-    const btnGlobal = document.createElement('button');
-    btnGlobal.className = 'btn';
-    btnGlobal.textContent = 'Join Global';
-    btnGlobal.onclick = () => joinRoom('global');
-
-    const btnWrapper = document.createElement('div');
-    btnWrapper.style.display = 'flex';
-    btnWrapper.style.gap = '6px';
-    btnWrapper.appendChild(btnJoin);
-    btnWrapper.appendChild(btnGlobal);
-
-    div.appendChild(meta);
-    div.appendChild(btnWrapper);
-    roomsContainer.appendChild(div);
+/* append chat message */
+function appendMessageUI(m){
+  const me=(m.user===localName);
+  const item=document.createElement('div');
+  if(m.user==='SYSTEM'){
+    item.className='msg-sys';
+    item.textContent=m.text;
+  } else {
+    item.className='message '+(me?'msg-me':'msg-other');
+    const meta=document.createElement('div');
+    meta.className='meta';
+    meta.textContent=me?`you • ${new Date(m.timestamp).toLocaleTimeString()}`:`${m.user} • ${new Date(m.timestamp).toLocaleTimeString()}`;
+    const txt=document.createElement('div');
+    txt.textContent=m.text;
+    item.appendChild(meta);
+    item.appendChild(txt);
   }
+  chatBox.appendChild(item);
+  chatBox.scrollTop=chatBox.scrollHeight;
 }
 
-function joinRoom(id, password=null){
-  if(!localName){ alert('Set username first'); return; }
-  socket.emit('join_room', { id, password }, (res) => {
-    if(!res || !res.ok){ alert(res?.error || 'Failed to join'); return; }
-    currentRoomId = id;
-    activeRoomName.textContent = rooms[id]?.name || id;
-    activeRoomMeta.textContent = `Participants: ${res.count || 0}`;
-    messageInput.disabled = false;
-    sendBtn.disabled = false;
-    chatBox.innerHTML = '';
-  });
-}
-
-sendBtn.addEventListener('click', () => {
-  const txt = messageInput.value.trim();
-  if(!txt || !currentRoomId) return;
-  socket.emit('chat_message', { room: currentRoomId, message: txt }, res=>{
-    if(res?.ok) messageInput.value = '';
-  });
+/* keyboard enter to send */
+messageInput.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendBtn.click(); }
 });
-
-messageInput.addEventListener('keydown', e=>{ if(e.key==='Enter') sendBtn.click(); });
-
-function appendMessageUI(msg){
-  const div = document.createElement('div');
-  div.className = 'message';
-  if(msg.type==='me') div.classList.add('msg-me');
-  else if(msg.type==='sys') div.classList.add('msg-sys');
-  else div.classList.add('msg-other');
-  div.innerHTML = `<div class="meta">${msg.name||'sys'}</div>${msg.message}`;
-  chatBox.appendChild(div);
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
 </script>
 </body>
 </html>
