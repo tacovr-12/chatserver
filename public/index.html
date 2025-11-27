@@ -187,8 +187,6 @@ let localLang = 'en';
 let currentRoomId = null;
 let rooms = {}; // local cached room list
 
-/* --- full language map for search/populate (subset plus many entries) --- */
-/* Note: uses many common codes; MyMemory uses usual ISO codes — this is large but not exhaustive */
 const LANGS = {
 "af":"Afrikaans","sq":"Albanian","am":"Amharic","ar":"Arabic","hy":"Armenian","az":"Azerbaijani","eu":"Basque","be":"Belarusian",
 "bn":"Bengali","bs":"Bosnian","bg":"Bulgarian","ca":"Catalan","ceb":"Cebuano","ny":"Chichewa","zh-CN":"Chinese (Simplified)","zh-TW":"Chinese (Traditional)",
@@ -205,7 +203,6 @@ const LANGS = {
 "ur":"Urdu","uz":"Uzbek","vi":"Vietnamese","cy":"Welsh","xh":"Xhosa","yi":"Yiddish","yo":"Yoruba","zu":"Zulu"
 };
 
-/* populate languages list */
 function populateLangs(filter = ''){
   langList.innerHTML = '';
   const q = filter.trim().toLowerCase();
@@ -218,43 +215,34 @@ function populateLangs(filter = ''){
       langList.appendChild(opt);
     }
   }
-  // default select english if present
   if(!langList.value && langList.options.length) langList.selectedIndex = 0;
 }
 populateLangs();
-
-/* filter languages as you type */
 langSearch.addEventListener('input', e => populateLangs(e.target.value));
 
-/* room visibility toggle password */
 roomVisibility.addEventListener('change', () => {
   roomPassword.style.display = roomVisibility.value === 'private' ? 'block' : 'none';
 });
 
-/* socket connection status */
 socket.on('connect', () => {
   connStatus.textContent = 'connected';
   connStatus.style.color = 'var(--accent)';
-  socket.emit('room_list'); // request rooms once connected
+  socket.emit('room_list');
 });
 socket.on('disconnect', () => {
   connStatus.textContent = 'disconnected';
   connStatus.style.color = '#999';
 });
 
-/* update room list pushed from server */
 socket.on('room_list', (serverRooms) => {
-  // serverRooms might be an object; normalize
   rooms = serverRooms || {};
   renderRooms();
 });
 
-/* chat messages from server (already translated per-user) */
 socket.on('chat_message', m => {
   appendMessageUI(m);
 });
 
-/* Enter / Connect button */
 enterBtn.addEventListener('click', async () => {
   const name = usernameInput.value.trim();
   const lang = (langList.value || 'en').toString();
@@ -263,17 +251,14 @@ enterBtn.addEventListener('click', async () => {
   localLang = lang;
   youName.textContent = localName;
   youLang.textContent = localLang;
-  // tell server our username+lang
   socket.emit('choose_username', { name: localName, lang: localLang }, res => {
     if(!res || !res.ok){ alert(res?.error || 'choose_username failed'); return; }
     enterBtn.style.display = 'none';
     leaveBtn.style.display = 'inline-block';
-    // keep server room list up to date
     socket.emit('request_rooms');
   });
 });
 
-/* Disconnect */
 leaveBtn.addEventListener('click', () => {
   socket.disconnect();
   enterBtn.style.display = 'inline-block';
@@ -283,7 +268,6 @@ leaveBtn.addEventListener('click', () => {
   sendBtn.disabled = true;
 });
 
-/* create room */
 createRoomBtn.addEventListener('click', () => {
   const name = newRoomName.value.trim();
   const isPrivate = roomVisibility.value === 'private';
@@ -295,17 +279,12 @@ createRoomBtn.addEventListener('click', () => {
     roomPassword.value = '';
     roomVisibility.value = 'public';
     roomPassword.style.display = 'none';
-    // refresh triggered by server 'room_list' emit
   });
 });
 
-/* refresh rooms */
 refreshRooms.addEventListener('click', () => socket.emit('request_rooms'));
-
-/* rooms search filter */
 roomSearch.addEventListener('input', () => renderRooms(roomSearch.value.trim()));
 
-/* render rooms into left panel */
 function renderRooms(filter = ''){
   roomsContainer.innerHTML = '';
   const keys = Object.keys(rooms);
@@ -318,126 +297,67 @@ function renderRooms(filter = ''){
   });
   for(const id of ordered){
     const r = rooms[id];
-    const display = (r.name || id);
-    if(q && !display.toLowerCase().includes(q)) continue;
+    if(q && !(r.name.toLowerCase().includes(q) || id.toLowerCase().includes(q))) continue;
     const div = document.createElement('div');
     div.className = 'room-item';
-    const left = document.createElement('div');
-    left.className = 'room-meta';
-    left.innerHTML = `<strong style="color:var(--accent)">${escapeHtml(display)}</strong>
-      <div class="small">${new Date(r.createdAt || Date.now()).toLocaleString()}</div>`;
-    const right = document.createElement('div');
-    const joinBtn = document.createElement('button');
-    joinBtn.textContent = 'Join';
-    joinBtn.className = 'btn';
-    joinBtn.onclick = () => {
-      if(r.isPrivate){
-        const pwd = prompt('Room is private. Enter password:');
-        if(pwd === null) return;
-        joinRoom(id, pwd);
-      } else joinRoom(id, null);
-    };
-    if(r.isPrivate){
-      const lock = document.createElement('span');
-      lock.className = 'room-private';
-      lock.textContent = 'private';
-      left.appendChild(lock);
-    }
-    right.appendChild(joinBtn);
-    div.appendChild(left);
-    div.appendChild(right);
+    const meta = document.createElement('div');
+    meta.innerHTML = `<span class="room-meta">${r.name}</span>` + (r.isPrivate ? '<span class="room-private">🔒</span>' : '');
+    const btnJoin = document.createElement('button');
+    btnJoin.className = 'btn ghost';
+    btnJoin.textContent = 'Join';
+    btnJoin.onclick = () => joinRoom(id, r.isPrivate ? prompt('Password for room?') : null);
+    
+    // NEW: Join Global button
+    const btnGlobal = document.createElement('button');
+    btnGlobal.className = 'btn';
+    btnGlobal.textContent = 'Join Global';
+    btnGlobal.onclick = () => joinRoom('global');
+
+    const btnWrapper = document.createElement('div');
+    btnWrapper.style.display = 'flex';
+    btnWrapper.style.gap = '6px';
+    btnWrapper.appendChild(btnJoin);
+    btnWrapper.appendChild(btnGlobal);
+
+    div.appendChild(meta);
+    div.appendChild(btnWrapper);
     roomsContainer.appendChild(div);
   }
 }
 
-/* join room helper */
-function joinRoom(roomId, password){
-  if(!localName){ alert('Set your username & language first'); return; }
-  socket.emit('join_room', { roomId, password }, (res) => {
+function joinRoom(id, password=null){
+  if(!localName){ alert('Set username first'); return; }
+  socket.emit('join_room', { id, password }, (res) => {
     if(!res || !res.ok){ alert(res?.error || 'Failed to join'); return; }
-    currentRoomId = res.roomId || roomId;
-    // update UI
-    const r = rooms[currentRoomId] || { name: currentRoomId };
-    activeRoomName.textContent = r.name || currentRoomId;
-    activeRoomMeta.textContent = `Room ID: ${currentRoomId} • Joined`;
-    chatBox.innerHTML = '';
+    currentRoomId = id;
+    activeRoomName.textContent = rooms[id]?.name || id;
+    activeRoomMeta.textContent = `Participants: ${res.count || 0}`;
     messageInput.disabled = false;
     sendBtn.disabled = false;
-    messageInput.focus();
-    appendSystemUI(`Joined ${r.name || currentRoomId}`);
+    chatBox.innerHTML = '';
   });
 }
 
-/* send message */
 sendBtn.addEventListener('click', () => {
   const txt = messageInput.value.trim();
   if(!txt || !currentRoomId) return;
-  socket.emit('send_message', { text: txt, roomId: currentRoomId });
-  // local echo (server will send translated message back to each client)
-  messageInput.value = '';
+  socket.emit('chat_message', { room: currentRoomId, message: txt }, res=>{
+    if(res?.ok) messageInput.value = '';
+  });
 });
 
-/* append system message */
-function appendSystemUI(text){
-  const el = document.createElement('div');
-  el.className = 'msg-sys';
-  el.textContent = text;
-  chatBox.appendChild(el);
+messageInput.addEventListener('keydown', e=>{ if(e.key==='Enter') sendBtn.click(); });
+
+function appendMessageUI(msg){
+  const div = document.createElement('div');
+  div.className = 'message';
+  if(msg.type==='me') div.classList.add('msg-me');
+  else if(msg.type==='sys') div.classList.add('msg-sys');
+  else div.classList.add('msg-other');
+  div.innerHTML = `<div class="meta">${msg.name||'sys'}</div>${msg.message}`;
+  chatBox.appendChild(div);
   chatBox.scrollTop = chatBox.scrollHeight;
 }
-
-/* append chat message (server already translated to this user's language) */
-function appendMessageUI(m){
-  // m: { user, text, timestamp, roomId }
-  if(m.roomId && currentRoomId && m.roomId !== currentRoomId) {
-    // message for other room; ignore
-    return;
-  }
-  const item = document.createElement('div');
-  const isSys = m.user === 'SYSTEM';
-  if(isSys){
-    item.className = 'msg-sys';
-    item.textContent = m.text;
-  } else {
-    const me = (m.user === localName);
-    item.className = 'message ' + (me ? 'msg-me':'msg-other');
-    // prefix with author (unless it's me)
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = me ? `you • ${new Date(m.timestamp).toLocaleTimeString()}` : `${m.user} • ${new Date(m.timestamp).toLocaleTimeString()}`;
-    const txt = document.createElement('div');
-    txt.textContent = m.text;
-    item.appendChild(meta);
-    item.appendChild(txt);
-  }
-  chatBox.appendChild(item);
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-/* escape helper */
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-/* initial render and keyboard shortcuts */
-populateLangs();
-renderRooms();
-
-roomSearch.addEventListener('keydown', (e) => { if(e.key==='Enter') renderRooms(roomSearch.value); });
-langList.addEventListener('dblclick', () => {
-  // double click to pick language quickly
-  if(langList.value) { langSearch.value=''; populateLangs(''); langList.selectedIndex = langList.selectedIndex; }
-});
-
-/* allow enter to send message */
-messageInput.addEventListener('keydown', (e) => {
-  if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
-});
-
-/* make sure UI stretches after join */
-window.addEventListener('resize', () => {
-  // no-op placeholder — CSS handles width, but keep resize handler if needed
-});
 </script>
 </body>
 </html>
