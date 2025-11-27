@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <link rel="icon" href="data:," />
 <style>
-  /* Black & green terminal theme */
+  /* Terminal-style theme */
   :root{
     --bg:#030405;
     --panel:#071013;
@@ -138,6 +138,7 @@ const activeRoomMeta = document.getElementById('activeRoomMeta');
 
 let localName = null;
 let localLang = 'en';
+let currentRoomId = null;
 const GLOBAL_ROOM = 'global';
 
 /* --- language map --- */
@@ -159,10 +160,13 @@ function populateLangs(filter=''){
 populateLangs();
 langSearch.addEventListener('input', e=>populateLangs(e.target.value));
 
-/* connection */
+/* connection status */
 socket.on('connect', ()=>{ connStatus.textContent='connected'; connStatus.style.color='var(--accent)'; });
 socket.on('disconnect', ()=>{ connStatus.textContent='disconnected'; connStatus.style.color='#999'; });
-socket.on('chat_message', m=>appendMessageUI(m));
+
+/* receive messages */
+socket.on('chat_message', appendMessageUI);
+socket.on('previous_messages', msgs => msgs.forEach(appendMessageUI));
 
 /* set username & language */
 enterBtn.addEventListener('click',()=>{
@@ -173,7 +177,7 @@ enterBtn.addEventListener('click',()=>{
   localLang=lang;
   youName.textContent=localName;
   youLang.textContent=localLang;
-  socket.emit('choose_username',{name:localName,lang:localLang},res=>{
+  socket.emit('choose_username',{name:localName},res=>{
     if(!res||!res.ok){ alert(res?.error||'choose_username failed'); return; }
     enterBtn.style.display='none';
     leaveBtn.style.display='inline-block';
@@ -182,6 +186,7 @@ enterBtn.addEventListener('click',()=>{
 
 /* leave chat */
 leaveBtn.addEventListener('click',()=>{
+  if(currentRoomId) socket.emit('leave_room',{roomId:currentRoomId}); // optional
   socket.disconnect();
   enterBtn.style.display='inline-block';
   leaveBtn.style.display='none';
@@ -191,40 +196,39 @@ leaveBtn.addEventListener('click',()=>{
   activeRoomMeta.textContent='join to start chatting';
 });
 
-/* join global */
-joinGlobalBtn.addEventListener('click',()=>joinRoom(GLOBAL_ROOM));
-
-/* join room helper (only global room) */
-function joinRoom(roomId){
-  if(!localName){ alert('Set your username & language first'); return; }
-  currentRoomId = roomId;
-  activeRoomName.textContent='GLOBAL CHAT';
-  activeRoomMeta.textContent='Room ID: global • Joined';
-  chatBox.innerHTML='';
-  messageInput.disabled=false;
-  sendBtn.disabled=false;
-  messageInput.focus();
-  appendSystemUI('Joined global chat');
-}
+/* join global room */
+joinGlobalBtn.addEventListener('click',()=>{
+  if(!localName){ alert('Set username first'); return; }
+  socket.emit('join_room',{roomId:GLOBAL_ROOM}, res=>{
+    if(!res || !res.ok){ alert(res?.error || 'Failed to join room'); return; }
+    currentRoomId = GLOBAL_ROOM;
+    activeRoomName.textContent='GLOBAL CHAT';
+    activeRoomMeta.textContent='Room ID: global • Joined';
+    messageInput.disabled=false;
+    sendBtn.disabled=false;
+    messageInput.focus();
+    chatBox.innerHTML=''; // clear previous UI
+    appendSystemUI('Joined global chat');
+  });
+});
 
 /* send message */
 sendBtn.addEventListener('click',()=>{
-  const txt=messageInput.value.trim();
-  if(!txt) return;
-  socket.emit('send_message',{text:txt,roomId:GLOBAL_ROOM});
+  const txt = messageInput.value.trim();
+  if(!txt || !currentRoomId) return;
+  socket.emit('send_message',{text:txt,roomId:currentRoomId});
   messageInput.value='';
 });
 
-/* append system message */
+/* append messages */
 function appendSystemUI(text){
-  const el=document.createElement('div');
+  const el = document.createElement('div');
   el.className='msg-sys';
   el.textContent=text;
   chatBox.appendChild(el);
-  chatBox.scrollTop=chatBox.scrollHeight;
+  chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-/* append chat message */
 function appendMessageUI(m){
   const me=(m.user===localName);
   const item=document.createElement('div');
@@ -245,9 +249,9 @@ function appendMessageUI(m){
   chatBox.scrollTop=chatBox.scrollHeight;
 }
 
-/* keyboard enter to send */
-messageInput.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendBtn.click(); }
+/* enter key to send */
+messageInput.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendBtn.click(); }
 });
 </script>
 </body>
