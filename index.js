@@ -16,109 +16,84 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const MESSAGES_FILE = path.join(__dirname, "messages.json");
 
-let users = {}; // socketId -> { username, lang }
-let messages = []; // { user, text, timestamp, roomId }
+let users = {};        // { socketId: { username } }
+let messages = [];     // { user, text, timestamp, roomId }
 
 const GLOBAL_ROOM_ID = "global";
 let rooms = {
   [GLOBAL_ROOM_ID]: {
     name: "GLOBAL CHAT",
-    isPrivate: false,
-    password: null,
-    createdAt: Date.now(),
-    users: new Set()
+    users: new Set(),
+    createdAt: Date.now()
   }
 };
 
-// Load old messages
-try {
-  messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8"));
-} catch {
-  messages = [];
-}
+// Load previous messages
+try { messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8")); } catch { messages = []; }
 
-// Save messages to disk
 function saveMessages() {
   fs.writeFile(MESSAGES_FILE, JSON.stringify(messages), err => {
     if (err) console.error("Failed to save messages:", err);
   });
 }
 
-// Remove old messages (>24h)
+// Clean up old messages (24h)
 function cleanupMessages() {
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - 24*60*60*1000;
   messages = messages.filter(m => m.timestamp > cutoff);
   saveMessages();
 }
-setInterval(cleanupMessages, 60 * 60 * 1000);
-
-// Remove old rooms (except global)
-function cleanupRooms() {
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-  for (const id in rooms) {
-    if (id === GLOBAL_ROOM_ID) continue;
-    if (rooms[id].createdAt < cutoff) delete rooms[id];
-  }
-}
-setInterval(cleanupRooms, 60 * 60 * 1000);
+setInterval(cleanupMessages, 60*60*1000);
 
 // SOCKET LOGIC
 io.on("connection", socket => {
-  // Always send the room list (global included)
+  // Send rooms list
   socket.emit("room_list", rooms);
 
-  // Send previous messages for global room
-  messages
-    .filter(m => m.roomId === GLOBAL_ROOM_ID)
-    .forEach(m => socket.emit("chat_message", m));
-
-  // User chooses username + language
-  socket.on("choose_username", ({ name, lang }, cb) => {
-    name = name.trim();
-    if (!name) return cb({ ok: false, error: "Username required" });
+  // Choose username
+  socket.on("choose_username", ({ name }, cb) => {
+    name = name?.trim();
+    if (!name) return cb({ ok:false, error:"Username required" });
     if (Object.values(users).some(u => u.username === name))
-      return cb({ ok: false, error: "Username taken" });
-
-    users[socket.id] = { username: name, lang };
-    cb({ ok: true });
+      return cb({ ok:false, error:"Username taken" });
+    users[socket.id] = { username:name };
+    cb({ ok:true });
   });
 
-  // Join room
+  // Join global room
   socket.on("join_room", ({ roomId }, cb) => {
     const room = rooms[roomId];
-    if (!room) return cb({ ok: false, error: "Room not found" });
+    if (!room) return cb({ ok:false, error:"Room not found" });
 
     room.users.add(socket.id);
     socket.join(roomId);
 
-    cb({ ok: true, roomId });
+    cb({ ok:true, roomId });
 
+    // Announce join
     const user = users[socket.id];
     if (!user) return;
-
     const joinMsg = {
-      user: "SYSTEM",
-      text: `${user.username} joined.`,
+      user:"SYSTEM",
+      text:`${user.username} joined the room.`,
       timestamp: Date.now(),
       roomId
     };
     messages.push(joinMsg);
     cleanupMessages();
 
-    // Broadcast to room
-    io.to(roomId).emit("chat_message", joinMsg);
+    room.users.forEach(sid => io.to(sid).emit("chat_message", joinMsg));
   });
 
   // Send message
   socket.on("send_message", ({ text, roomId }) => {
     const user = users[socket.id];
     if (!user) return;
-
-    const msg = text.trim();
+    const msg = text?.trim();
     if (!msg) return;
 
     const room = rooms[roomId];
-    if (!room) return;
+    if (!room || !room.users.has(socket.id)) return;
 
     const messageData = {
       user: user.username,
@@ -129,28 +104,15 @@ io.on("connection", socket => {
     messages.push(messageData);
     cleanupMessages();
 
-    io.to(roomId).emit("chat_message", messageData);
+    room.users.forEach(sid => io.to(sid).emit("chat_message", messageData));
   });
 
   // Disconnect
   socket.on("disconnect", () => {
-    const user = users[socket.id];
     delete users[socket.id];
-
-    for (const id in rooms) {
-      const room = rooms[id];
-      if (room.users.has(socket.id)) {
-        room.users.delete(socket.id);
-        io.to(id).emit("chat_message", {
-          user: "SYSTEM",
-          text: `${user?.username || "A user"} left.`,
-          timestamp: Date.now(),
-          roomId: id
-        });
-      }
-    }
+    for (const r of Object.values(rooms)) r.users.delete(socket.id);
   });
 });
 
 const PORT = process.env.PORT || 4000;
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Listening on ${PORT}`));
