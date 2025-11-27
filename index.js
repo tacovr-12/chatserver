@@ -10,7 +10,12 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*", // allow all origins for testing; adjust in production
+    methods: ["GET","POST"]
+  }
+});
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -29,15 +34,20 @@ let rooms = {
 };
 
 // Load previous messages
-try { messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8")); } catch { messages = []; }
+try { 
+  messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8")); 
+} catch { 
+  messages = []; 
+}
 
+// Save messages
 function saveMessages() {
-  fs.writeFile(MESSAGES_FILE, JSON.stringify(messages), err => {
+  fs.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2), err => {
     if (err) console.error("Failed to save messages:", err);
   });
 }
 
-// Clean up old messages (24h)
+// Clean up old messages (older than 24h)
 function cleanupMessages() {
   const cutoff = Date.now() - 24*60*60*1000;
   messages = messages.filter(m => m.timestamp > cutoff);
@@ -50,6 +60,9 @@ io.on("connection", socket => {
   // Send rooms list
   socket.emit("room_list", rooms);
 
+  // Send previous messages for global room
+  socket.emit("previous_messages", messages.filter(m => m.roomId === GLOBAL_ROOM_ID));
+
   // Choose username
   socket.on("choose_username", ({ name }, cb) => {
     name = name?.trim();
@@ -60,14 +73,13 @@ io.on("connection", socket => {
     cb({ ok:true });
   });
 
-  // Join global room
+  // Join room
   socket.on("join_room", ({ roomId }, cb) => {
     const room = rooms[roomId];
     if (!room) return cb({ ok:false, error:"Room not found" });
 
     room.users.add(socket.id);
     socket.join(roomId);
-
     cb({ ok:true, roomId });
 
     // Announce join
@@ -82,7 +94,7 @@ io.on("connection", socket => {
     messages.push(joinMsg);
     cleanupMessages();
 
-    room.users.forEach(sid => io.to(sid).emit("chat_message", joinMsg));
+    io.to(roomId).emit("chat_message", joinMsg);
   });
 
   // Send message
@@ -104,7 +116,7 @@ io.on("connection", socket => {
     messages.push(messageData);
     cleanupMessages();
 
-    room.users.forEach(sid => io.to(sid).emit("chat_message", messageData));
+    io.to(roomId).emit("chat_message", messageData);
   });
 
   // Disconnect
