@@ -4,125 +4,118 @@ import { Server } from "socket.io";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: "*", // allow all origins for testing; adjust in production
-    methods: ["GET","POST"]
-  }
-});
+const io = new Server(httpServer);
 
 app.use(express.static(path.join(__dirname, "public")));
 
 const MESSAGES_FILE = path.join(__dirname, "messages.json");
+let users = {}; // { socketId: { username, lang } }
+let messages = [];
+let translationCache = {};
 
-let users = {};        // { socketId: { username } }
-let messages = [];     // { user, text, timestamp, roomId }
-
-const GLOBAL_ROOM_ID = "global";
-let rooms = {
-  [GLOBAL_ROOM_ID]: {
-    name: "GLOBAL CHAT",
-    users: new Set(),
-    createdAt: Date.now()
-  }
-};
-
-// Load previous messages
-try { 
-  messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8")); 
-} catch { 
-  messages = []; 
+// Load messages
+try {
+  messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8"));
+} catch {
+  messages = [];
 }
 
-// Save messages
 function saveMessages() {
-  fs.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2), err => {
+  fs.writeFile(MESSAGES_FILE, JSON.stringify(messages), err => {
     if (err) console.error("Failed to save messages:", err);
   });
 }
 
-// Clean up old messages (older than 24h)
 function cleanupMessages() {
-  const cutoff = Date.now() - 24*60*60*1000;
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   messages = messages.filter(m => m.timestamp > cutoff);
   saveMessages();
 }
-setInterval(cleanupMessages, 60*60*1000);
+setInterval(cleanupMessages, 60 * 60 * 1000);
 
-// SOCKET LOGIC
+// MyMemory translation
+async function translateText(text, targetLang, sourceLang = "EN") {
+  if (!targetLang || targetLang.toUpperCase() === sourceLang.toUpperCase()) return text;
+
+  const key = `${text}|${sourceLang}|${targetLang}`;
+  if (translationCache[key]) return translationCache[key];
+
+  try {
+    const langpair = `${sourceLang.toUpperCase()}|${targetLang.toUpperCase()}`;
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`
+    );
+    const data = await res.json();
+    const translated = data.responseData?.translatedText || text;
+    translationCache[key] = translated;
+    return translated;
+  } catch (err) {
+    console.error("Translate error:", err);
+    return text;
+  }
+}
+
+// Socket.IO
 io.on("connection", socket => {
-  // Send rooms list
-  socket.emit("room_list", rooms);
+  socket.emit("chat_history", messages);
 
-  // Send previous messages for global room
-  socket.emit("previous_messages", messages.filter(m => m.roomId === GLOBAL_ROOM_ID));
+  socket.on("choose_username", async ({ name, lang }, cb) => {
+    name = name.trim();
+    if (!name) return cb({ ok: false, error: "Username required" });
+    if (Object.values(users).some(u => u.username === name)) return cb({ ok: false, error: "Username taken" });
 
-  // Choose username
-  socket.on("choose_username", ({ name }, cb) => {
-    name = name?.trim();
-    if (!name) return cb({ ok:false, error:"Username required" });
-    if (Object.values(users).some(u => u.username === name))
-      return cb({ ok:false, error:"Username taken" });
-    users[socket.id] = { username:name };
-    cb({ ok:true });
-  });
+    users[socket.id] = { username: name, lang: lang || "en" };
+    cb({ ok: true });
 
-  // Join room
-  socket.on("join_room", ({ roomId }, cb) => {
-    const room = rooms[roomId];
-    if (!room) return cb({ ok:false, error:"Room not found" });
-
-    room.users.add(socket.id);
-    socket.join(roomId);
-    cb({ ok:true, roomId });
-
-    // Announce join
-    const user = users[socket.id];
-    if (!user) return;
-    const joinMsg = {
-      user:"SYSTEM",
-      text:`${user.username} joined the room.`,
-      timestamp: Date.now(),
-      roomId
-    };
+    const joinMsg = { user: "SYSTEM", text: `${name} joined.`, timestamp: Date.now() };
     messages.push(joinMsg);
     cleanupMessages();
 
-    io.to(roomId).emit("chat_message", joinMsg);
+    // Broadcast join message translated to each user's language
+    await Promise.all(Object.entries(users).map(async ([id, u]) => {
+      const translated = await translateText(joinMsg.text, u.lang, "EN");
+      io.to(id).emit("chat_message", { ...joinMsg, text: translated });
+    }));
   });
 
-  // Send message
-  socket.on("send_message", ({ text, roomId }) => {
+  socket.on("send_message", async ({ text }) => {
     const user = users[socket.id];
     if (!user) return;
-    const msg = text?.trim();
+
+    const msg = text.trim();
     if (!msg) return;
 
-    const room = rooms[roomId];
-    if (!room || !room.users.has(socket.id)) return;
-
-    const messageData = {
-      user: user.username,
-      text: msg,
-      timestamp: Date.now(),
-      roomId
-    };
+    const messageData = { user: user.username, text: msg, timestamp: Date.now() };
     messages.push(messageData);
     cleanupMessages();
 
-    io.to(roomId).emit("chat_message", messageData);
+    // Translate for every recipient to their chosen language
+    await Promise.all(Object.entries(users).map(async ([id, u]) => {
+      const translated = await translateText(msg, u.lang, user.lang);
+      io.to(id).emit("chat_message", { ...messageData, text: translated });
+    }));
   });
 
-  // Disconnect
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
+    const user = users[socket.id];
+    if (!user) return;
     delete users[socket.id];
-    for (const r of Object.values(rooms)) r.users.delete(socket.id);
+
+    const leaveMsg = { user: "SYSTEM", text: `${user.username} left.`, timestamp: Date.now() };
+    messages.push(leaveMsg);
+    cleanupMessages();
+
+    await Promise.all(Object.entries(users).map(async ([id, u]) => {
+      const translated = await translateText(leaveMsg.text, u.lang, "EN");
+      io.to(id).emit("chat_message", { ...leaveMsg, text: translated });
+    }));
   });
 });
 

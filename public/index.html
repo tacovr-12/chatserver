@@ -1,258 +1,258 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<title>Global Chat — Terminal Edition</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<link rel="icon" href="data:," />
+<meta charset="UTF-8">
+<title>Global Chat</title>
 <style>
-  /* Terminal-style theme */
-  :root{
-    --bg:#030405;
-    --panel:#071013;
-    --muted:#0f3820;
-    --accent:#00ff6a;
-    --accent-dim:#00b254;
-    --text:#b9f9c9;
-    --sys:#7fffb0;
-    --danger:#ff4d4d;
+  /* Basic reset */
+  html, body {
+    height: 100%;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    width: 100%;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
-  html,body{height:100%;margin:0;background:linear-gradient(180deg,#020204 0%,#07110b 100%);font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, "Roboto Mono", monospace;color:var(--text);-webkit-font-smoothing:antialiased}
-  .app{max-width:1400px;margin:18px auto;padding:16px;display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start}
-  .header{grid-column:1/3;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px}
-  h1{margin:0;font-size:18px;color:var(--accent)}
-  .sub{color:#9fe7b8;font-size:12px}
-  .card{background:linear-gradient(180deg, rgba(2,6,3,0.6), rgba(5,12,8,0.4));border:1px solid rgba(0,255,106,0.06);padding:12px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.6)}
-  .left{display:flex;flex-direction:column;gap:12px}
-  label{font-size:12px;color:#8ff7c6;display:block;margin-bottom:6px}
-  input[type="text"], input[type="password"], select, textarea {
-    width:100%;padding:10px;border-radius:8px;border:1px solid rgba(0,255,106,0.08);
-    background:transparent;color:var(--text);outline:none;font-family:inherit;font-size:13px;
+
+  h2 {
+    margin-top: 20px;
+    color: #333;
   }
-  input::placeholder{color:#2c6b45}
-  .btn {
-    background:linear-gradient(180deg,var(--accent),var(--accent-dim));color:#001a0a;border:none;padding:10px;border-radius:8px;
-    cursor:pointer;font-weight:700;font-size:13px;
+
+  /* Login section */
+  #loginSection {
+    width: 80%;
+    max-width: 1200px;
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+    align-items: center;
   }
-  .btn.ghost{background:transparent;border:1px solid rgba(0,255,106,0.06);color:var(--text);font-weight:600}
-  .btn.danger{background:linear-gradient(180deg,var(--danger),#b33);color:#111}
-  .row{display:flex;gap:8px}
-  .lang-search{display:flex;flex-direction:column;gap:8px}
-  .lang-box{display:flex;flex-direction:column;gap:8px}
-  #langList{height:130px;overflow:auto;padding:6px;border-radius:8px;background:rgba(0,0,0,0.12);border:1px solid rgba(0,255,106,0.03)}
-  #langList option{background:transparent;color:var(--text);padding:6px}
-  .chat-wrap{display:flex;flex-direction:column;height:78vh}
-  .chat-box{flex:1;border-radius:12px;padding:14px;background:linear-gradient(180deg,#041109,#051611);overflow:auto;border:1px solid rgba(0,255,106,0.04)}
-  .message{max-width:78%;padding:10px 14px;border-radius:12px;margin-bottom:10px;word-wrap:break-word;line-height:1.2}
-  .msg-me{background:linear-gradient(90deg,var(--accent),var(--accent-dim));color:#021307;margin-left:auto;border-bottom-right-radius:2px}
-  .msg-other{background:#0b2b18;border:1px solid rgba(0,255,106,0.02);color:var(--text);margin-right:auto;border-bottom-left-radius:2px}
-  .msg-sys{align-self:center;background:transparent;color:var(--sys);font-style:italic;font-size:12px;border-radius:6px}
-  .meta {font-size:11px;color:#95f1b5;margin-bottom:6px}
-  .chat-input{display:flex;gap:8px;margin-top:12px}
-  #message{flex:1;padding:12px;border-radius:12px;border:1px solid rgba(0,255,106,0.05);background:transparent;color:var(--text);font-family:inherit}
-  .right-top{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}
-  .room-title{font-weight:700;color:var(--accent)}
-  .muted{color:#79d7a2;font-size:13px}
-  .notice{color:#9fe7b8;font-size:13px;padding:6px;background:rgba(0,0,0,0.12);border-radius:8px;border:1px solid rgba(0,255,106,0.02)}
-  @media (max-width:1000px){
-    .app{grid-template-columns:1fr; padding:12px}
-    .chat-wrap{height:60vh}
+
+  #loginSection input, #loginSection select {
+    padding: 10px;
+    flex: 1 1 200px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+
+  #loginSection button {
+    padding: 10px 20px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  #loginSection button:hover {
+    background-color: #0056b3;
+  }
+
+  /* Search input for languages */
+  #langSearch {
+    flex: 1 1 200px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+
+  /* Chat container */
+  #chatContainer {
+    flex: 1;
+    width: 90%;
+    max-width: 1200px;
+    display: flex;
+    flex-direction: column;
+    margin: 20px auto;
+    min-height: 500px;
+  }
+
+  #chat {
+    flex: 1;
+    width: 100%;
+    border: 1px solid #ccc;
+    padding: 15px;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #inputContainer {
+    display: flex;
+    width: 100%;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  #msg {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+
+  #sendBtn {
+    padding: 10px 20px;
+    border: none;
+    background-color: #28a745;
+    color: white;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  #sendBtn:hover {
+    background-color: #1e7e34;
+  }
+
+  .system-msg {
+    font-style: italic;
+    color: #555;
+  }
+
+  /* Language options dropdown */
+  #lang {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    flex: 1 1 200px;
   }
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="header">
-    <div>
-      <h1>GLOBAL CHAT — TERMINAL</h1>
-      <div class="sub">Black & green • ephemeral rooms • per-user translation</div>
-    </div>
-    <div class="sub">Status: <span id="connStatus" class="muted">disconnected</span></div>
-  </div>
 
-  <div class="left">
-    <div class="card">
-      <div style="display:flex;gap:10px;align-items:center">
-        <div style="flex:1">
-          <label>Username</label>
-          <input id="username" type="text" placeholder="your handle">
-        </div>
-        <div style="width:180px">
-          <label>Language (search)</label>
-          <input id="langSearch" placeholder="type to filter">
-        </div>
-      </div>
+<h2>Global Chat</h2>
 
-      <div style="margin-top:8px" class="lang-box card" aria-hidden="false">
-        <label style="margin-bottom:6px">Choose language code</label>
-        <select id="langList" size="6" style="width:100%"></select>
-      </div>
+<div id="loginSection">
+  <input id="name" placeholder="Enter username" />
+  <input id="langSearch" placeholder="Search language..." oninput="filterLanguages()" />
+  <select id="lang">
+    <!-- Full language list will be populated by JS -->
+  </select>
+  <button onclick="join()">Join</button>
+</div>
 
-      <div class="row" style="margin-top:10px">
-        <button id="enterBtn" class="btn">Set & Connect</button>
-        <button id="leaveBtn" class="btn ghost" style="display:none">Disconnect</button>
-        <button id="joinGlobalBtn" class="btn ghost">Join Global</button>
-      </div>
-      <div style="margin-top:8px" class="small">Pick any ISO 639-1 code. Search filters by name.</div>
-    </div>
-  </div>
-
-  <div class="chat-wrap">
-    <div class="card right-top">
-      <div>
-        <div class="room-title" id="activeRoomName">(not in a room)</div>
-        <div class="muted" id="activeRoomMeta">join to start chatting</div>
-      </div>
-      <div style="text-align:right">
-        <div class="small">You: <span id="youName">—</span></div>
-        <div class="small">Lang: <span id="youLang">—</span></div>
-      </div>
-    </div>
-
-    <div class="chat-box card" id="chatBox" aria-live="polite"></div>
-
-    <div class="chat-input">
-      <input id="message" placeholder="Type a message" disabled>
-      <button id="sendBtn" class="btn" disabled>Send</button>
-    </div>
+<div id="chatContainer">
+  <div id="chat"></div>
+  <div id="inputContainer">
+    <input id="msg" placeholder="Message" disabled />
+    <button id="sendBtn" onclick="send()" disabled>Send</button>
   </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const socket = io();
-const connStatus = document.getElementById('connStatus');
-const enterBtn = document.getElementById('enterBtn');
-const leaveBtn = document.getElementById('leaveBtn');
-const joinGlobalBtn = document.getElementById('joinGlobalBtn');
-const usernameInput = document.getElementById('username');
-const langSearch = document.getElementById('langSearch');
-const langList = document.getElementById('langList');
-const youName = document.getElementById('youName');
-const youLang = document.getElementById('youLang');
-const chatBox = document.getElementById('chatBox');
-const messageInput = document.getElementById('message');
-const sendBtn = document.getElementById('sendBtn');
-const activeRoomName = document.getElementById('activeRoomName');
-const activeRoomMeta = document.getElementById('activeRoomMeta');
+let socket;
+let loggedIn = false;
+let myLang = "en";
 
-let localName = null;
-let localLang = 'en';
-let currentRoomId = null;
-const GLOBAL_ROOM = 'global';
+// Full language list (ISO 639-1 codes)
+const languages = [
+  { code: "en", name: "English" },
+  { code: "ja", name: "Japanese" },
+  { code: "de", name: "German" },
+  { code: "es", name: "Spanish" },
+  { code: "fr", name: "French" },
+  { code: "zh", name: "Chinese" },
+  { code: "ar", name: "Arabic" },
+  { code: "ru", name: "Russian" },
+  { code: "pt", name: "Portuguese" },
+  { code: "hi", name: "Hindi" },
+  { code: "it", name: "Italian" },
+  { code: "ko", name: "Korean" },
+  { code: "tr", name: "Turkish" },
+  { code: "sv", name: "Swedish" },
+  { code: "nl", name: "Dutch" },
+  { code: "pl", name: "Polish" },
+  { code: "vi", name: "Vietnamese" },
+  { code: "th", name: "Thai" },
+  { code: "id", name: "Indonesian" },
+  // ... Add 200+ languages here if needed
+];
 
-/* --- language map --- */
-const LANGS = {"en":"English","es":"Spanish","fr":"French","de":"German","zh-CN":"Chinese (Simplified)","ja":"Japanese"};
-function populateLangs(filter=''){
-  langList.innerHTML='';
-  const q = filter.trim().toLowerCase();
-  for(const code in LANGS){
-    const name = LANGS[code];
-    if(!q || name.toLowerCase().includes(q) || code.toLowerCase().includes(q)){
-      const opt = document.createElement('option');
-      opt.value = code;
-      opt.textContent = `${name} — ${code}`;
-      langList.appendChild(opt);
-    }
-  }
-  if(!langList.value && langList.options.length) langList.selectedIndex=0;
+// Populate language dropdown
+const langSelect = document.getElementById("lang");
+function populateLanguages(list) {
+  langSelect.innerHTML = "";
+  list.forEach(l => {
+    const opt = document.createElement("option");
+    opt.value = l.code;
+    opt.textContent = l.name;
+    langSelect.appendChild(opt);
+  });
 }
-populateLangs();
-langSearch.addEventListener('input', e=>populateLangs(e.target.value));
+populateLanguages(languages);
 
-/* connection status */
-socket.on('connect', ()=>{ connStatus.textContent='connected'; connStatus.style.color='var(--accent)'; });
-socket.on('disconnect', ()=>{ connStatus.textContent='disconnected'; connStatus.style.color='#999'; });
-
-/* receive messages */
-socket.on('chat_message', appendMessageUI);
-socket.on('previous_messages', msgs => msgs.forEach(appendMessageUI));
-
-/* set username & language */
-enterBtn.addEventListener('click',()=>{
-  const name=usernameInput.value.trim();
-  const lang=(langList.value||'en').toString();
-  if(!name){ alert('Username required'); return; }
-  localName=name;
-  localLang=lang;
-  youName.textContent=localName;
-  youLang.textContent=localLang;
-  socket.emit('choose_username',{name:localName},res=>{
-    if(!res||!res.ok){ alert(res?.error||'choose_username failed'); return; }
-    enterBtn.style.display='none';
-    leaveBtn.style.display='inline-block';
-  });
-});
-
-/* leave chat */
-leaveBtn.addEventListener('click',()=>{
-  if(currentRoomId) socket.emit('leave_room',{roomId:currentRoomId}); // optional
-  socket.disconnect();
-  enterBtn.style.display='inline-block';
-  leaveBtn.style.display='none';
-  messageInput.disabled=true;
-  sendBtn.disabled=true;
-  activeRoomName.textContent='(not in a room)';
-  activeRoomMeta.textContent='join to start chatting';
-});
-
-/* join global room */
-joinGlobalBtn.addEventListener('click',()=>{
-  if(!localName){ alert('Set username first'); return; }
-  socket.emit('join_room',{roomId:GLOBAL_ROOM}, res=>{
-    if(!res || !res.ok){ alert(res?.error || 'Failed to join room'); return; }
-    currentRoomId = GLOBAL_ROOM;
-    activeRoomName.textContent='GLOBAL CHAT';
-    activeRoomMeta.textContent='Room ID: global • Joined';
-    messageInput.disabled=false;
-    sendBtn.disabled=false;
-    messageInput.focus();
-    chatBox.innerHTML=''; // clear previous UI
-    appendSystemUI('Joined global chat');
-  });
-});
-
-/* send message */
-sendBtn.addEventListener('click',()=>{
-  const txt = messageInput.value.trim();
-  if(!txt || !currentRoomId) return;
-  socket.emit('send_message',{text:txt,roomId:currentRoomId});
-  messageInput.value='';
-});
-
-/* append messages */
-function appendSystemUI(text){
-  const el = document.createElement('div');
-  el.className='msg-sys';
-  el.textContent=text;
-  chatBox.appendChild(el);
-  chatBox.scrollTop = chatBox.scrollHeight;
+// Filter languages by search
+function filterLanguages() {
+  const search = document.getElementById("langSearch").value.toLowerCase();
+  const filtered = languages.filter(l => l.name.toLowerCase().includes(search));
+  populateLanguages(filtered);
 }
 
-function appendMessageUI(m){
-  const me=(m.user===localName);
-  const item=document.createElement('div');
-  if(m.user==='SYSTEM'){
-    item.className='msg-sys';
-    item.textContent=m.text;
+function join() {
+  const name = document.getElementById("name").value.trim();
+  myLang = document.getElementById("lang").value;
+  if (!name) return alert("Enter a username");
+
+  socket = io();
+
+  socket.emit("choose_username", { name, lang: myLang }, res => {
+    if (!res.ok) return alert(res.error);
+
+    loggedIn = true;
+    document.getElementById("msg").disabled = false;
+    document.getElementById("sendBtn").disabled = false;
+    document.getElementById("loginSection").style.display = "none";
+    appendSystem(`Joined as ${name}`);
+  });
+
+  socket.on("chat_history", msgs => {
+    msgs.forEach(m => appendMessage(m.user, m.text));
+  });
+
+  socket.on("chat_message", m => appendMessage(m.user, m.text));
+}
+
+function send() {
+  const msgInput = document.getElementById("msg");
+  const msg = msgInput.value.trim();
+  if (!msg || !loggedIn) return;
+  socket.emit("send_message", { text: msg, lang: myLang });
+  msgInput.value = "";
+}
+
+function appendMessage(user, text) {
+  const chatDiv = document.getElementById("chat");
+  const div = document.createElement("div");
+  if (user === "SYSTEM") {
+    div.className = "system-msg";
+    div.textContent = text;
   } else {
-    item.className='message '+(me?'msg-me':'msg-other');
-    const meta=document.createElement('div');
-    meta.className='meta';
-    meta.textContent=me?`you • ${new Date(m.timestamp).toLocaleTimeString()}`:`${m.user} • ${new Date(m.timestamp).toLocaleTimeString()}`;
-    const txt=document.createElement('div');
-    txt.textContent=m.text;
-    item.appendChild(meta);
-    item.appendChild(txt);
+    div.innerHTML = `<strong>${user}:</strong> ${text}`;
   }
-  chatBox.appendChild(item);
-  chatBox.scrollTop=chatBox.scrollHeight;
+  chatDiv.appendChild(div);
+  chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
-/* enter key to send */
-messageInput.addEventListener('keydown', e=>{
-  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendBtn.click(); }
-});
+function appendSystem(text) {
+  const chatDiv = document.getElementById("chat");
+  const div = document.createElement("div");
+  div.className = "system-msg";
+  div.textContent = text;
+  chatDiv.appendChild(div);
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
 </script>
+
 </body>
 </html>
