@@ -11,19 +11,20 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer);
+const io = new Server(httpServer, {
+  cors: { origin: "*" }
+});
 
 app.use(express.static(path.join(__dirname, "public")));
 
 const MESSAGES_FILE = path.join(__dirname, "messages.json");
 
-let users = {};                         // { socketId: { username, lang } }
-let messages = [];                      // stored messages (roomId included)
-let translationCache = {};              // translation caching
+let users = {};          // { socketId: { username, lang } }
+let messages = [];       // { user, text, timestamp, roomId }
+let translationCache = {};
+const GLOBAL_ROOM = "global"; // single global room
 
-let rooms = {};                         // roomId: { name, isPrivate, password, createdAt, users:Set }
-
-// Load old message history
+// Load old messages
 try {
   messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, "utf-8"));
 } catch {
@@ -36,7 +37,6 @@ function saveMessages() {
   });
 }
 
-// Clean up 24-hour old messages
 function cleanupMessages() {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   messages = messages.filter(m => m.timestamp > cutoff);
@@ -44,49 +44,32 @@ function cleanupMessages() {
 }
 setInterval(cleanupMessages, 60 * 60 * 1000);
 
-// Clean up 24-hour old rooms
-function cleanupRooms() {
-  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-  for (const id in rooms) {
-    if (rooms[id].createdAt < cutoff) delete rooms[id];
-  }
-}
-setInterval(cleanupRooms, 60 * 60 * 1000);
-
-// MyMemory translation
 async function translateText(text, targetLang) {
-  if (!targetLang) return text;
-  if (targetLang === "auto") return text;
+  if (!targetLang || targetLang === "auto") return text;
 
   const key = `${text}|${targetLang}`;
   if (translationCache[key]) return translationCache[key];
 
   try {
-    // Source language is unknown, so use EN as safe default
     const langpair = `EN|${targetLang.toUpperCase()}`;
-
     const res = await fetch(
       `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`
     );
-
     const data = await res.json();
     const translated = data.responseData?.translatedText || text;
-
     translationCache[key] = translated;
     return translated;
-
   } catch (err) {
     console.error("Translate error:", err);
     return text;
   }
 }
 
-// SOCKET LOGIC
+// SOCKET.IO
 io.on("connection", socket => {
+  // add user to global room by default
+  socket.join(GLOBAL_ROOM);
 
-  socket.emit("room_list", rooms);
-
-  // User chooses username + language
   socket.on("choose_username", ({ name, lang }, cb) => {
     name = name.trim();
     if (!name) return cb({ ok: false, error: "Username required" });
@@ -95,57 +78,14 @@ io.on("connection", socket => {
 
     users[socket.id] = { username: name, lang };
     cb({ ok: true });
-  });
 
-  // CREATE ROOM
-  socket.on("create_room", ({ name, isPrivate, password }, cb) => {
-    const roomId = Math.random().toString(36).slice(2, 10);
-
-    rooms[roomId] = {
-      name,
-      isPrivate,
-      password: isPrivate ? password : null,
-      createdAt: Date.now(),
-      users: new Set()
-    };
-
-    io.emit("room_list", rooms);
-    cb({ ok: true, roomId });
-  });
-
-  // JOIN ROOM
-  socket.on("join_room", ({ roomId, password }, cb) => {
-    const room = rooms[roomId];
-    if (!room) return cb({ ok: false, error: "Room not found" });
-
-    if (room.isPrivate && room.password !== password)
-      return cb({ ok: false, error: "Wrong password" });
-
-    room.users.add(socket.id);
-    socket.join(roomId);
-
-    cb({ ok: true, roomId });
-
-    // Announce join inside the room
-    const user = users[socket.id];
-    if (!user) return;
-
-    const joinMsg = {
-      user: "SYSTEM",
-      text: `${user.username} joined.`,
-      timestamp: Date.now(),
-      roomId
-    };
-
-    messages.push(joinMsg);
-    cleanupMessages();
-
-    // Translate per person
-    room.users.forEach(async sid => {
-      const receiver = users[sid];
-      const translated = await translateText(joinMsg.text, receiver.lang);
-      io.to(sid).emit("chat_message", { ...joinMsg, text: translated });
-    });
+    // send previous global messages
+    messages
+      .filter(m => m.roomId === GLOBAL_ROOM)
+      .forEach(async m => {
+        const translated = await translateText(m.text, lang);
+        socket.emit("chat_message", { ...m, text: translated });
+      });
   });
 
   // SEND MESSAGE
@@ -160,33 +100,26 @@ io.on("connection", socket => {
       user: user.username,
       text: msg,
       timestamp: Date.now(),
-      roomId
+      roomId: roomId || GLOBAL_ROOM
     };
 
     messages.push(messageData);
     cleanupMessages();
 
-    const room = rooms[roomId];
-    if (!room) return;
-
-    room.users.forEach(async sid => {
-      const receiver = users[sid];
+    // Broadcast to all in the room
+    const socketsInRoom = await io.in(messageData.roomId).fetchSockets();
+    socketsInRoom.forEach(async s => {
+      const receiver = users[s.id];
+      if (!receiver) return;
       const translated = await translateText(msg, receiver.lang);
-      io.to(sid).emit("chat_message", { ...messageData, text: translated });
+      io.to(s.id).emit("chat_message", { ...messageData, text: translated });
     });
   });
 
-  // DISCONNECT LOGIC
   socket.on("disconnect", () => {
-    const user = users[socket.id];
-    if (!user) return;
     delete users[socket.id];
-
-    for (const id in rooms) {
-      rooms[id].users.delete(socket.id);
-    }
   });
 });
 
 const PORT = process.env.PORT || 4000;
-httpServer.listen(PORT, () => console.log(`Listening on ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
